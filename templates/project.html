@@ -1,0 +1,206 @@
+{% extends "base.html" %}
+{% block title %}{{ p.name }}{% endblock %}
+{% block content %}
+
+<div class="page-head">
+  <div>
+    <a class="back" href="{{ url_for('dashboard') }}">← 看板</a>
+    <h1>{{ p.name }}</h1>
+    <p class="muted small">
+      {% if p.path %}<code>{{ p.path }}</code>{% else %}<em>想法阶段 · 暂无路径</em>{% endif %}
+      {% if p.github_repo %} · <a href="https://github.com/{{ p.github_repo }}" target="_blank">🔒 私有</a>{% endif %}
+      {% if p.github_repo_public %} · <a href="https://github.com/{{ p.github_repo_public }}" target="_blank">🌱 开源</a>{% endif %}
+      {% if p.online_url %} · <a href="{{ p.online_url }}" target="_blank">线上</a>{% endif %}
+    </p>
+  </div>
+  <div class="head-actions">
+    <button class="btn" id="project-sync-btn" data-url="{{ url_for('sync_today_one', pid=p.id) }}">🔄 同步今天</button>
+    <a class="btn" href="{{ url_for('export_project', pid=p.id) }}">⬇ 导出</a>
+    <button class="btn" onclick="document.getElementById('edit-project').showModal()">编辑</button>
+  </div>
+</div>
+
+<div class="layout-2col">
+<section>
+  <h2>每日日志</h2>
+  {% if not logs %}
+    <p class="muted">还没有日志。点上方"同步今天"试试。</p>
+  {% endif %}
+  {% for log in logs %}
+  <article class="log">
+    <header>
+      <h3>{{ log.date }}</h3>
+      <button class="btn-sm" onclick="this.nextElementSibling.classList.toggle('open')">查看 commit</button>
+      <div class="commits collapsible">
+        <ul>
+          {% for c in log.commits %}<li><code>{{ c.hash[:7] }}</code> {{ c.subject }}</li>{% endfor %}
+        </ul>
+      </div>
+    </header>
+    {% if log.auto_summary %}
+      <div class="auto-summary">{{ log.auto_summary }}</div>
+    {% endif %}
+    <form method="post" action="{{ url_for('update_log_notes', log_id=log.id) }}" class="notes-form">
+      <input type="hidden" name="project_id" value="{{ p.id }}">
+      <textarea name="manual_notes" placeholder="今天的手动补充…">{{ log.manual_notes or '' }}</textarea>
+      <button class="btn-sm btn-primary">保存补充</button>
+    </form>
+    <details class="link-note">
+      <summary>+ 关联一条笔记到这一天</summary>
+      <form method="post" action="{{ url_for('note_new') }}">
+        <input type="hidden" name="project_id" value="{{ p.id }}">
+        <input type="hidden" name="linked_daily_log_id" value="{{ log.id }}">
+        <input type="hidden" name="redirect_to" value="{{ url_for('project_detail', pid=p.id) }}">
+        <input type="text" name="title" placeholder="标题" required>
+        <textarea name="body" placeholder="正文" rows="2"></textarea>
+        <input type="text" name="tags" placeholder="标签（逗号分隔）">
+        <button class="btn-sm btn-primary">添加</button>
+      </form>
+    </details>
+  </article>
+  {% endfor %}
+</section>
+
+<aside>
+  <section>
+    <div class="section-head">
+      <h2>迭代清单</h2>
+      <button class="btn-sm" onclick="document.getElementById('new-iter').showModal()">＋ 新迭代</button>
+    </div>
+    {% if not iterations %}<p class="muted small">还没有迭代记录。</p>{% endif %}
+    {% for it in iterations %}
+    <div class="iter">
+      <div class="iter-head">
+        <strong>{{ it.name }}</strong>
+        <span class="muted small">{{ it.date }}</span>
+      </div>
+      <div class="iter-checks">
+        {% for f, label in [('claudemd_updated', 'CLAUDE.md'), ('memory_updated', 'memory'), ('pushed_to_github', 'GitHub'), ('deployed', '部署')] %}
+        <label class="check">
+          <input type="checkbox" {% if it[f] %}checked{% endif %} data-toggle-url="{{ url_for('iteration_toggle', iid=it.id) }}" data-field="{{ f }}">
+          {{ label }}
+        </label>
+        {% endfor %}
+      </div>
+      <form method="post" action="{{ url_for('iteration_delete', iid=it.id) }}" class="inline-delete">
+        <input type="hidden" name="project_id" value="{{ p.id }}">
+        <button class="btn-sm danger" onclick="return confirm('删除此迭代？')">删除</button>
+      </form>
+    </div>
+    {% endfor %}
+  </section>
+
+  <section>
+    <div class="section-head">
+      <h2>项目笔记</h2>
+      <button class="btn-sm" onclick="document.getElementById('new-note').showModal()">＋ 新笔记</button>
+    </div>
+    {% if not notes %}<p class="muted small">还没有笔记。</p>{% endif %}
+    {% for n in notes %}
+    <div class="note-item">
+      <strong>{{ n.title }}</strong>
+      {% if n.tags %}<span class="muted small">[{{ n.tags }}]</span>{% endif %}
+      {% if n.linked_daily_log_id %}<span class="muted small">· 关联日志</span>{% endif %}
+      <div class="note-body">{{ n.body }}</div>
+    </div>
+    {% endfor %}
+  </section>
+
+  <section>
+    <div class="section-head">
+      <h2>自媒体</h2>
+      <button class="btn-sm" onclick="document.getElementById('new-media').showModal()">＋ 新内容</button>
+    </div>
+    {% if not media %}<p class="muted small">还没有关联媒体内容。</p>{% endif %}
+    {% for m in media %}
+    <div class="media-item">
+      <span class="media-type">{{ '🎬' if m.type == 'video' else '📝' }}</span>
+      {% if m.link %}<a href="{{ m.link }}" target="_blank">{{ m.title }}</a>{% else %}{{ m.title }}{% endif %}
+      <form method="post" action="{{ url_for('media_update', mid=m.id) }}" class="inline">
+        <input type="hidden" name="redirect_to" value="{{ url_for('project_detail', pid=p.id) }}">
+        <select name="status" onchange="this.form.submit()">
+          {% for s in ['planned', 'in-progress', 'done'] %}
+          <option value="{{ s }}" {% if m.status == s %}selected{% endif %}>{{ s }}</option>
+          {% endfor %}
+        </select>
+      </form>
+      <form method="post" action="{{ url_for('media_delete', mid=m.id) }}" class="inline-delete">
+        <input type="hidden" name="redirect_to" value="{{ url_for('project_detail', pid=p.id) }}">
+        <button class="btn-sm danger" onclick="return confirm('删除？')">×</button>
+      </form>
+    </div>
+    {% endfor %}
+  </section>
+</aside>
+</div>
+
+<!-- dialogs -->
+<dialog id="edit-project" class="dialog">
+  <form method="post" action="{{ url_for('project_update', pid=p.id) }}">
+    <h3>编辑项目</h3>
+    <label>名称 <input type="text" name="name" value="{{ p.name }}" required></label>
+    <label>本地路径 <input type="text" name="path" value="{{ p.path or '' }}"></label>
+    <label>GitHub 私有仓库（user/repo）<input type="text" name="github_repo" value="{{ p.github_repo or '' }}" placeholder="jasminemo1110/Drive"></label>
+    <label>GitHub 公开仓库（开源镜像，user/repo）<input type="text" name="github_repo_public" value="{{ p.github_repo_public or '' }}" placeholder="留空 = 仅有私有仓库"></label>
+    <label>阶段
+      <select name="stage">
+        {% for s in stage_order %}<option value="{{ s }}" {% if p.stage == s %}selected{% endif %}>{{ stage_labels[s] }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>上线 URL <input type="url" name="online_url" value="{{ p.online_url or '' }}"></label>
+    <label class="check"><input type="checkbox" name="online_status" {% if p.online_status %}checked{% endif %}> 当前在线</label>
+    <div class="dialog-actions">
+      <button type="button" onclick="this.closest('dialog').close()" class="btn">取消</button>
+      <button type="submit" class="btn btn-primary">保存</button>
+    </div>
+  </form>
+  <form method="post" action="{{ url_for('project_delete', pid=p.id) }}" class="danger-zone">
+    <button class="btn-sm danger" onclick="return confirm('确认删除整个项目？')">删除项目</button>
+  </form>
+</dialog>
+
+<dialog id="new-iter" class="dialog">
+  <form method="post" action="{{ url_for('iteration_new', pid=p.id) }}">
+    <h3>新迭代</h3>
+    <label>名称 <input type="text" name="name" placeholder="例：v0.2 - 优化首页"></label>
+    <p class="muted small">CLAUDE.md / memory / GitHub 推送状态会自动预勾选。</p>
+    <div class="dialog-actions">
+      <button type="button" onclick="this.closest('dialog').close()" class="btn">取消</button>
+      <button type="submit" class="btn btn-primary">创建</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="new-note" class="dialog">
+  <form method="post" action="{{ url_for('note_new') }}">
+    <input type="hidden" name="project_id" value="{{ p.id }}">
+    <input type="hidden" name="redirect_to" value="{{ url_for('project_detail', pid=p.id) }}">
+    <h3>新笔记</h3>
+    <label>标题 <input type="text" name="title" required></label>
+    <label>正文 <textarea name="body" rows="6"></textarea></label>
+    <label>标签（逗号分隔）<input type="text" name="tags"></label>
+    <div class="dialog-actions">
+      <button type="button" onclick="this.closest('dialog').close()" class="btn">取消</button>
+      <button type="submit" class="btn btn-primary">添加</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="new-media" class="dialog">
+  <form method="post" action="{{ url_for('media_new') }}">
+    <input type="hidden" name="project_id" value="{{ p.id }}">
+    <input type="hidden" name="redirect_to" value="{{ url_for('project_detail', pid=p.id) }}">
+    <h3>新自媒体内容</h3>
+    <label>标题 <input type="text" name="title" required></label>
+    <label>类型 <select name="type"><option value="video">视频</option><option value="article">文章</option></select></label>
+    <label>状态 <select name="status"><option value="planned">planned</option><option value="in-progress">in-progress</option><option value="done">done</option></select></label>
+    <label>链接 <input type="url" name="link"></label>
+    <label>备注 <textarea name="notes" rows="2"></textarea></label>
+    <div class="dialog-actions">
+      <button type="button" onclick="this.closest('dialog').close()" class="btn">取消</button>
+      <button type="submit" class="btn btn-primary">添加</button>
+    </div>
+  </form>
+</dialog>
+
+{% endblock %}

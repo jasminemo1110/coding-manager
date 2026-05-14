@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+{% block title %}看板{% endblock %}
+{% block content %}
+
+<div class="page-head">
+  <h1>看板</h1>
+  <div class="head-actions">
+    <button class="btn btn-primary" id="sync-today-btn" data-url="{{ url_for('sync_today_all') }}">🔄 同步今天（全部项目）</button>
+    <button class="btn" onclick="document.getElementById('add-project-dialog').showModal()">＋ 新项目</button>
+  </div>
+</div>
+
+{% if todos %}
+<section class="todos">
+  <h2>待办</h2>
+  <ul>
+    {% for t in todos %}
+      <li>
+        <a href="{{ url_for('project_detail', pid=t.project_id) }}"><strong>{{ t.project_name }}</strong></a>
+        <span class="todo-kind todo-{{ t.kind }}">{{ t.text }}</span>
+      </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
+
+{% if suggestions %}
+<section class="suggestions">
+  <h2>扫描建议</h2>
+  <p class="muted">检测到这些 git 仓库还没纳入看板：</p>
+  <ul>
+    {% for s in suggestions %}
+      <li>
+        <code>{{ s.path }}</code>
+        <form method="post" action="{{ url_for('project_add_from_scan') }}" style="display:inline">
+          <input type="hidden" name="path" value="{{ s.path }}">
+          <button class="btn-sm btn-primary">添加</button>
+        </form>
+        <form method="post" action="{{ url_for('project_exclude_scan') }}" style="display:inline">
+          <input type="hidden" name="path" value="{{ s.path }}">
+          <button class="btn-sm">排除</button>
+        </form>
+      </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
+
+<div class="filter-bar">
+  <a href="{{ url_for('dashboard') }}" class="chip {% if stage_filter=='all' %}active{% endif %}">全部</a>
+  {% for s in stage_order %}
+    <a href="{{ url_for('dashboard', stage=s) }}" class="chip {% if stage_filter==s %}active{% endif %}">{{ stage_labels[s] }}</a>
+  {% endfor %}
+</div>
+
+<div class="grid">
+  {% for p in projects %}
+  <a class="card" href="{{ url_for('project_detail', pid=p.id) }}">
+    <div class="card-head">
+      <h3>{{ p.name }}</h3>
+      <select class="stage-select stage-{{ p.stage }}"
+              data-url="{{ url_for('project_stage', pid=p.id) }}"
+              onclick="event.preventDefault(); event.stopPropagation()">
+        {% for s in stage_order %}
+          <option value="{{ s }}" {% if p.stage == s %}selected{% endif %}>{{ stage_labels[s] }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    {% if p.live and p.live.last_commit_date %}
+    <p class="muted small">最近 commit · {{ p.live.last_commit_date }}</p>
+    {% elif not p.path %}
+    <p class="muted small">想法阶段 · 暂无路径</p>
+    {% endif %}
+    <div class="badges">
+      {% if p.live and p.live.has_claudemd %}<span class="badge">📝 CLAUDE.md</span>{% endif %}
+      {% if p.github_repo %}
+        <span class="badge badge-private" data-href="https://github.com/{{ p.github_repo }}" onclick="event.preventDefault(); event.stopPropagation(); window.open(this.dataset.href,'_blank')">
+          🔒 {{ p.github_repo.split('/')[-1] if '/' in p.github_repo else 'GitHub' }}
+        </span>
+      {% endif %}
+      {% if p.github_repo_public %}
+        <span class="badge badge-public" data-href="https://github.com/{{ p.github_repo_public }}" onclick="event.preventDefault(); event.stopPropagation(); window.open(this.dataset.href,'_blank')">
+          🌱 开源
+        </span>
+      {% endif %}
+      {% if p.online_status and p.online_url %}
+        <span class="badge" data-href="{{ p.online_url }}" onclick="event.preventDefault(); event.stopPropagation(); window.open(this.dataset.href,'_blank')">🌐 已上线</span>
+      {% endif %}
+      {% if p.media_count %}<span class="badge">🎬 {{ p.media_count }} 条媒体</span>{% endif %}
+    </div>
+  </a>
+  {% else %}
+  <p class="empty muted">还没有项目。点右上角"新项目"，或在「设置」里检查扫描路径。</p>
+  {% endfor %}
+</div>
+
+<dialog id="add-project-dialog" class="dialog">
+  <form method="post" action="{{ url_for('project_add') }}">
+    <h3>新建项目</h3>
+    <label>项目名 <input type="text" name="name" required></label>
+    <label>本地路径（可留空，留空 = 想法阶段）<input type="text" name="path" placeholder="/Users/lixiaonan/code/..."></label>
+    <label>阶段
+      <select name="stage">
+        {% for s in stage_order %}<option value="{{ s }}">{{ stage_labels[s] }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>上线 URL（可选）<input type="url" name="online_url"></label>
+    <div class="dialog-actions">
+      <button type="button" onclick="this.closest('dialog').close()" class="btn">取消</button>
+      <button type="submit" class="btn btn-primary">添加</button>
+    </div>
+  </form>
+</dialog>
+
+{% endblock %}

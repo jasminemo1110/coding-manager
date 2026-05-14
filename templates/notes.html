@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}笔记{% endblock %}
+{% block content %}
+
+<div class="page-head">
+  <h1>笔记</h1>
+  <div class="head-actions">
+    <button class="btn" onclick="document.getElementById('new-global-note').showModal()">＋ 新建全局笔记</button>
+    <a class="btn" href="{{ url_for('export_global_notes') }}">⬇ 导出全部全局笔记</a>
+    <a class="btn" href="{{ url_for('export_all_notes') }}">⬇ 导出所有笔记</a>
+  </div>
+</div>
+
+<form class="search-bar" method="get">
+  <input type="search" name="q" value="{{ q }}" placeholder="搜索标题、正文、标签…">
+  <button class="btn-sm">搜索</button>
+  {% if q %}<a class="btn-sm" href="{{ url_for('notes_list') }}">清除</a>{% endif %}
+</form>
+
+{% if not notes %}
+  <p class="empty muted">还没有笔记。可以从右上"新建全局笔记"开始。</p>
+{% endif %}
+
+<ul class="note-list">
+  {% for n in notes %}
+  <li class="note-card">
+    <div class="note-card-head">
+      <strong>{{ n.title }}</strong>
+      <span class="muted small">
+        {% if n.project_name %}<span class="proj-tag">{{ n.project_name }}</span>{% else %}<span class="proj-tag global">全局</span>{% endif %}
+        · {{ n.updated_at[:10] }}
+        {% if n.tags %} · {{ n.tags }}{% endif %}
+      </span>
+    </div>
+    <div class="note-body">{{ n.body }}</div>
+    <div class="note-actions">
+      <details>
+        <summary class="btn-sm">编辑</summary>
+        <form method="post" action="{{ url_for('note_edit', nid=n.id) }}">
+          <input type="hidden" name="redirect_to" value="{{ url_for('notes_list', q=q) }}">
+          <input type="text" name="title" value="{{ n.title }}" required>
+          <textarea name="body" rows="4">{{ n.body }}</textarea>
+          <input type="text" name="tags" value="{{ n.tags or '' }}" placeholder="标签">
+          <button class="btn-sm btn-primary">保存</button>
+        </form>
+      </details>
+      <form method="post" action="{{ url_for('note_delete', nid=n.id) }}" class="inline-delete">
+        <input type="hidden" name="redirect_to" value="{{ url_for('notes_list', q=q) }}">
+        <button class="btn-sm danger" onclick="return confirm('删除笔记？')">删除</button>
+      </form>
+    </div>
+  </li>
+  {% endfor %}
+</ul>
+
+<dialog id="new-global-note" class="dialog">
+  <form method="post" action="{{ url_for('note_new') }}">
+    <input type="hidden" name="redirect_to" value="{{ url_for('notes_list') }}">
+    <h3>新建全局笔记</h3>
+    <p class="muted small">不绑定任何项目，记录跨项目的想法/学习。</p>
+    <label>标题 <input type="text" name="title" required></label>
+    <label>正文 <textarea name="body" rows="8"></textarea></label>
+    <label>标签 <input type="text" name="tags" placeholder="逗号分隔"></label>
+    <div class="dialog-actions">
+      <button type="button" onclick="this.closest('dialog').close()" class="btn">取消</button>
+      <button type="submit" class="btn btn-primary">添加</button>
+    </div>
+  </form>
+</dialog>
+
+{% endblock %}

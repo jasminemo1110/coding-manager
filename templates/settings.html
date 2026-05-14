@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}设置{% endblock %}
+{% block content %}
+
+<div class="page-head">
+  <h1>设置</h1>
+</div>
+
+<form method="post" action="{{ url_for('settings') }}" class="settings-form">
+  <section>
+    <h2>扫描目录</h2>
+    <p class="muted small">每行一个路径。看板会扫描这些目录下的一级子文件夹，找出 git 仓库作为"建议项目"。</p>
+    <textarea name="scan_paths" rows="4" class="mono">{{ scan_paths }}</textarea>
+  </section>
+
+  <section>
+    <h2>Claude API Key</h2>
+    <p class="muted small">用于"同步今天"时生成自然语言摘要（Haiku，约 ¥0.02/天/项目）。留空则不生成摘要，只保留 commit 列表。</p>
+    <label class="check"><input type="text" name="anthropic_api_key" placeholder="sk-ant-…" style="width:100%"></label>
+    {% if api_key_set %}
+      <p class="muted small">✓ 已设置（保存新值会覆盖）。 <label class="check inline"><input type="checkbox" name="clear_api_key"> 清除</label></p>
+    {% endif %}
+  </section>
+
+  <section>
+    <h2>GitHub Token（可选）</h2>
+    <p class="muted small">用于检测私有仓库的可见性。不填则只能识别公开仓库。需要 <code>repo</code> 范围的 Personal Access Token。</p>
+    <label class="check"><input type="text" name="github_token" placeholder="ghp_…" style="width:100%"></label>
+    {% if github_token_set %}<p class="muted small">✓ 已设置</p>{% endif %}
+  </section>
+
+  <div class="dialog-actions">
+    <button type="submit" class="btn btn-primary">保存设置</button>
+  </div>
+</form>
+
+{% if excluded %}
+<section>
+  <h2>已排除的扫描结果</h2>
+  <ul>
+    {% for p in excluded %}
+    <li>
+      <code>{{ p.path }}</code>
+      <form method="post" action="{{ url_for('project_restore_scan', pid=p.id) }}" class="inline">
+        <button class="btn-sm">恢复</button>
+      </form>
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
+
+{% endblock %}

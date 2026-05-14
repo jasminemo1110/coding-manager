@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}自媒体{% endblock %}
+{% block content %}
+
+<div class="page-head">
+  <h1>自媒体</h1>
+  <div class="head-actions">
+    <button class="btn" onclick="document.getElementById('new-global-media').showModal()">＋ 新建全局媒体内容</button>
+  </div>
+</div>
+
+<div class="filter-bar">
+  <span class="filter-label">状态：</span>
+  {% for s, label in [('all','全部'),('planned','计划中'),('in-progress','进行中'),('done','已完成')] %}
+    <a href="{{ url_for('media_list', status=s, scope=scope) }}" class="chip {% if status==s %}active{% endif %}">{{ label }}</a>
+  {% endfor %}
+  <span class="filter-label" style="margin-left:1.5rem">归属：</span>
+  {% for s, label in [('all','全部'),('project','项目关联'),('global','全局')] %}
+    <a href="{{ url_for('media_list', status=status, scope=s) }}" class="chip {% if scope==s %}active{% endif %}">{{ label }}</a>
+  {% endfor %}
+</div>
+
+{% if not items %}
+  <p class="empty muted">还没有内容。</p>
+{% endif %}
+
+<ul class="media-grid">
+  {% for m in items %}
+  <li class="media-card status-{{ m.status }}">
+    <div class="media-card-head">
+      <span class="media-type">{{ '🎬' if m.type == 'video' else '📝' }}</span>
+      {% if m.link %}<a href="{{ m.link }}" target="_blank"><strong>{{ m.title }}</strong></a>{% else %}<strong>{{ m.title }}</strong>{% endif %}
+    </div>
+    <p class="muted small">
+      {% if m.project_name %}<span class="proj-tag">{{ m.project_name }}</span>{% else %}<span class="proj-tag global">全局</span>{% endif %}
+      · 状态 <strong>{{ m.status }}</strong>
+    </p>
+    {% if m.notes %}<p class="note-body">{{ m.notes }}</p>{% endif %}
+    <form method="post" action="{{ url_for('media_update', mid=m.id) }}" class="inline">
+      <input type="hidden" name="redirect_to" value="{{ url_for('media_list', status=status, scope=scope) }}">
+      <select name="status" onchange="this.form.submit()">
+        {% for s in ['planned','in-progress','done'] %}
+        <option value="{{ s }}" {% if m.status == s %}selected{% endif %}>{{ s }}</option>
+        {% endfor %}
+      </select>
+    </form>
+    <form method="post" action="{{ url_for('media_delete', mid=m.id) }}" class="inline-delete">
+      <input type="hidden" name="redirect_to" value="{{ url_for('media_list', status=status, scope=scope) }}">
+      <button class="btn-sm danger" onclick="return confirm('删除？')">×</button>
+    </form>
+  </li>
+  {% endfor %}
+</ul>
+
+<dialog id="new-global-media" class="dialog">
+  <form method="post" action="{{ url_for('media_new') }}">
+    <input type="hidden" name="redirect_to" value="{{ url_for('media_list') }}">
+    <h3>新建全局自媒体内容</h3>
+    <p class="muted small">不绑定具体项目，记录关于整个 vibe coding 经历的视频/文章想法。</p>
+    <label>标题 <input type="text" name="title" required></label>
+    <label>类型 <select name="type"><option value="video">视频</option><option value="article">文章</option></select></label>
+    <label>状态 <select name="status"><option value="planned">planned</option><option value="in-progress">in-progress</option><option value="done">done</option></select></label>
+    <label>链接 <input type="url" name="link"></label>
+    <label>备注 <textarea name="notes" rows="3"></textarea></label>
+    <div class="dialog-actions">
+      <button type="button" onclick="this.closest('dialog').close()" class="btn">取消</button>
+      <button type="submit" class="btn btn-primary">添加</button>
+    </div>
+  </form>
+</dialog>
+
+{% endblock %}
