@@ -15,7 +15,7 @@
   <section class="todos">
     <h2>待办</h2>
     <form method="post" action="{{ url_for('global_todo_add') }}" class="manual-todo-form">
-      <input type="hidden" name="redirect_to" value="{{ url_for('dashboard', stage=stage_filter, category=category_filter, sort=sort_by) }}">
+      <input type="hidden" name="redirect_to" value="{{ url_for('dashboard', stage=stage_filter_str, category=category_filter_str, sort=sort_by) }}">
       <input type="text" name="text" placeholder="手动补充，回车添加…" required>
     </form>
     {% if panel_todos %}
@@ -28,7 +28,7 @@
         </label>
         {% if t.project_name %}<a class="panel-todo-proj" href="{{ url_for('project_detail', pid=t.project_id) }}">{{ t.project_name }}</a>{% endif %}
         <form method="post" action="{{ url_for('project_todo_delete', tid=t.id) }}" class="inline-delete">
-          <input type="hidden" name="redirect_to" value="{{ url_for('dashboard', stage=stage_filter, category=category_filter, sort=sort_by) }}">
+          <input type="hidden" name="redirect_to" value="{{ url_for('dashboard', stage=stage_filter_str, category=category_filter_str, sort=sort_by) }}">
           <button class="btn-sm danger">×</button>
         </form>
       </li>
@@ -113,22 +113,32 @@
 {% endif %}
 
 <div class="filter-bar">
-  <span class="filter-label">阶段：</span>
-  <a href="{{ url_for('dashboard', sort=sort_by, category=category_filter) }}" class="chip {% if stage_filter=='all' %}active{% endif %}">全部</a>
+  <span class="filter-label">阶段（可多选）：</span>
+  <a href="{{ url_for('dashboard', sort=sort_by, category=category_filter_str) }}" class="chip {% if not stage_filter_list %}active{% endif %}">全部</a>
   {% for s in stage_order %}
-    <a href="{{ url_for('dashboard', stage=s, sort=sort_by, category=category_filter) }}" class="chip {% if stage_filter==s %}active{% endif %}">{{ stage_labels[s] }}</a>
+    {% if s in stage_filter_list %}
+      {% set new_stage = stage_filter_list | reject('equalto', s) | list | join(',') %}
+    {% else %}
+      {% set new_stage = (stage_filter_list + [s]) | join(',') %}
+    {% endif %}
+    <a href="{{ url_for('dashboard', stage=new_stage, sort=sort_by, category=category_filter_str) }}" class="chip {% if s in stage_filter_list %}active{% endif %}" title="点击切换 · 可多选">{{ stage_labels[s] }}</a>
   {% endfor %}
 </div>
 
 <div class="filter-bar">
-  <span class="filter-label">分类：</span>
-  <a href="{{ url_for('dashboard', stage=stage_filter, sort=sort_by) }}" class="chip {% if category_filter=='all' %}active{% endif %}">全部</a>
+  <span class="filter-label">分类（可多选）：</span>
+  <a href="{{ url_for('dashboard', stage=stage_filter_str, sort=sort_by) }}" class="chip {% if not category_filter_list %}active{% endif %}">全部</a>
   {% for c in categories %}
-    <a href="{{ url_for('dashboard', stage=stage_filter, sort=sort_by, category=c.name) }}" class="chip {% if category_filter==c.name %}active{% endif %}">{{ c.name }}</a>
+    {% if c.name in category_filter_list %}
+      {% set new_cat = category_filter_list | reject('equalto', c.name) | list | join(',') %}
+    {% else %}
+      {% set new_cat = (category_filter_list + [c.name]) | join(',') %}
+    {% endif %}
+    <a href="{{ url_for('dashboard', stage=stage_filter_str, sort=sort_by, category=new_cat) }}" class="chip {% if c.name in category_filter_list %}active{% endif %}" title="点击切换 · 可多选">{{ c.name }}</a>
   {% endfor %}
   <span class="filter-label" style="margin-left:1.5rem">排序：</span>
   {% for key, label in [('stage','按阶段'),('created','按创建时间'),('updated','按最近更新')] %}
-    <a href="{{ url_for('dashboard', stage=stage_filter, category=category_filter, sort=key) }}" class="chip {% if sort_by==key %}active{% endif %}">{{ label }}</a>
+    <a href="{{ url_for('dashboard', stage=stage_filter_str, category=category_filter_str, sort=key) }}" class="chip {% if sort_by==key %}active{% endif %}">{{ label }}</a>
   {% endfor %}
 </div>
 
@@ -215,7 +225,7 @@
     </div>
     <div class="todo-col">
       <form method="post" action="{{ url_for('project_todo_add', pid=p.id) }}" class="todo-col-add">
-        <input type="hidden" name="redirect_to" value="{{ url_for('dashboard', stage=stage_filter, category=category_filter, sort=sort_by) }}">
+        <input type="hidden" name="redirect_to" value="{{ url_for('dashboard', stage=stage_filter_str, category=category_filter_str, sort=sort_by) }}">
         <input type="text" name="text" placeholder="＋ 加一条待办，回车…" required>
       </form>
       {% for t in p.project_todos %}
@@ -228,7 +238,7 @@
                 data-url="{{ url_for('project_todo_important', tid=t.id) }}"
                 title="标为重要 · 同步到顶部待办区">★</button>
         <form method="post" action="{{ url_for('project_todo_delete', tid=t.id) }}" class="inline-delete">
-          <input type="hidden" name="redirect_to" value="{{ url_for('dashboard', stage=stage_filter, category=category_filter, sort=sort_by) }}">
+          <input type="hidden" name="redirect_to" value="{{ url_for('dashboard', stage=stage_filter_str, category=category_filter_str, sort=sort_by) }}">
           <button class="btn-sm danger">×</button>
         </form>
       </div>
@@ -245,7 +255,7 @@
 <dialog id="add-media-dialog" class="dialog">
   <form method="post" action="{{ url_for('media_new') }}">
     <input type="hidden" name="project_id" id="media-dialog-pid">
-    <input type="hidden" name="redirect_to" value="{{ url_for('dashboard', stage=stage_filter, category=category_filter, sort=sort_by) }}">
+    <input type="hidden" name="redirect_to" value="{{ url_for('dashboard', stage=stage_filter_str, category=category_filter_str, sort=sort_by) }}">
     <h3>为 <span id="media-dialog-project"></span> 添加自媒体内容</h3>
     <label>标题 <input type="text" name="title" required></label>
     <label>类型 <select name="type"><option value="video">视频</option><option value="article">文章</option></select></label>
@@ -260,7 +270,7 @@
 
 <dialog id="media-edit-dialog" class="dialog">
   <form method="post" id="media-edit-form">
-    <input type="hidden" name="redirect_to" value="{{ url_for('dashboard', stage=stage_filter, category=category_filter, sort=sort_by) }}">
+    <input type="hidden" name="redirect_to" value="{{ url_for('dashboard', stage=stage_filter_str, category=category_filter_str, sort=sort_by) }}">
     <h3>编辑自媒体内容</h3>
     <label>标题 <input type="text" name="title" id="me-title" required></label>
     <label>类型 <select name="type" id="me-type"><option value="video">视频</option><option value="article">文章</option></select></label>
@@ -272,7 +282,7 @@
     </div>
   </form>
   <form method="post" id="media-delete-form" class="danger-zone">
-    <input type="hidden" name="redirect_to" value="{{ url_for('dashboard', stage=stage_filter, category=category_filter, sort=sort_by) }}">
+    <input type="hidden" name="redirect_to" value="{{ url_for('dashboard', stage=stage_filter_str, category=category_filter_str, sort=sort_by) }}">
     <button class="btn-sm danger" onclick="return confirm('删除这条自媒体内容？')">删除这条内容</button>
   </form>
 </dialog>

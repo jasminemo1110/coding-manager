@@ -256,17 +256,19 @@ def categories_for_project(pid):
 
 @app.route("/")
 def dashboard():
-    stage_filter = request.args.get("stage", "all")
-    category_filter = request.args.get("category", "all")
+    stage_param = request.args.get("stage", "")
+    category_param = request.args.get("category", "")
+    stage_filter_list = [s for s in stage_param.split(",") if s and s != "all"]
+    category_filter_list = [c for c in category_param.split(",") if c and c != "all"]
     sort_by = request.args.get("sort", "updated")
     projects = all_projects()
     enriched = [enrich_project(p) for p in projects]
-    if stage_filter != "all":
-        enriched = [p for p in enriched if p.get("stage") == stage_filter]
-    if category_filter != "all":
+    if stage_filter_list:
+        enriched = [p for p in enriched if p.get("stage") in stage_filter_list]
+    if category_filter_list:
         enriched = [
             p for p in enriched
-            if any(c["name"] == category_filter for c in p.get("categories", []))
+            if any(c["name"] in category_filter_list for c in p.get("categories", []))
         ]
 
     def first_commit(p):
@@ -291,8 +293,10 @@ def dashboard():
     return render_template(
         "dashboard.html",
         projects=enriched,
-        stage_filter=stage_filter,
-        category_filter=category_filter,
+        stage_filter_list=stage_filter_list,
+        category_filter_list=category_filter_list,
+        stage_filter_str=",".join(stage_filter_list),
+        category_filter_str=",".join(category_filter_list),
         sort_by=sort_by,
         stage_labels=db.STAGE_LABELS,
         stage_order=db.STAGE_ORDER,
