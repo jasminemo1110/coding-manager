@@ -17,11 +17,24 @@ CREATE TABLE IF NOT EXISTS projects (
     github_visibility TEXT,
     github_repo_public TEXT,
     stage TEXT NOT NULL DEFAULT 'sprout',
+    category TEXT,
+    description TEXT,
     online_url TEXT,
     online_status INTEGER NOT NULL DEFAULT 0,
+    tracks_deployment INTEGER NOT NULL DEFAULT 0,
     excluded_from_scan INTEGER NOT NULL DEFAULT 0,
     sort_order INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+);
+
+CREATE TABLE IF NOT EXISTS project_todos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id INTEGER,
+    text TEXT NOT NULL,
+    done INTEGER NOT NULL DEFAULT 0,
+    important INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS daily_logs (
@@ -31,6 +44,11 @@ CREATE TABLE IF NOT EXISTS daily_logs (
     auto_summary TEXT,
     manual_notes TEXT,
     raw_commits_json TEXT,
+    claudemd_updated INTEGER NOT NULL DEFAULT 0,
+    memory_updated INTEGER NOT NULL DEFAULT 0,
+    pushed_to_github INTEGER NOT NULL DEFAULT 0,
+    deployed INTEGER NOT NULL DEFAULT 0,
+    disabled_checks TEXT NOT NULL DEFAULT '',
     UNIQUE(project_id, date),
     FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
 );
@@ -69,13 +87,36 @@ CREATE TABLE IF NOT EXISTS media_items (
     status TEXT NOT NULL DEFAULT 'planned',
     link TEXT,
     notes TEXT,
+    starred INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
     FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS reference_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    body TEXT,
+    links TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
 );
 
 CREATE TABLE IF NOT EXISTS settings (
     key TEXT PRIMARY KEY,
     value TEXT
+);
+
+CREATE TABLE IF NOT EXISTS categories (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL UNIQUE,
+    sort_order INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS project_categories (
+    project_id INTEGER NOT NULL,
+    category_id INTEGER NOT NULL,
+    PRIMARY KEY (project_id, category_id),
+    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+    FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE CASCADE
 );
 """
 
@@ -114,6 +155,65 @@ def init_db():
         cols = {row["name"] for row in cur.fetchall()}
         if "github_repo_public" not in cols:
             cur.execute("ALTER TABLE projects ADD COLUMN github_repo_public TEXT")
+        if "category" not in cols:
+            cur.execute("ALTER TABLE projects ADD COLUMN category TEXT")
+        if "starred" not in cols:
+            cur.execute("ALTER TABLE projects ADD COLUMN starred INTEGER NOT NULL DEFAULT 0")
+        if "description" not in cols:
+            cur.execute("ALTER TABLE projects ADD COLUMN description TEXT")
+        if "tracks_deployment" not in cols:
+            cur.execute(
+                "ALTER TABLE projects ADD COLUMN tracks_deployment INTEGER NOT NULL DEFAULT 0"
+            )
+            # backfill: a project with an online URL or marked online clearly needs deploy tracking
+            cur.execute(
+                "UPDATE projects SET tracks_deployment = 1 "
+                "WHERE (online_url IS NOT NULL AND online_url != '') OR online_status = 1"
+            )
+        # daily_logs checklist columns
+        cur.execute("PRAGMA table_info(daily_logs)")
+        dl_cols = {row["name"] for row in cur.fetchall()}
+        for col in ("claudemd_updated", "memory_updated", "pushed_to_github", "deployed"):
+            if col not in dl_cols:
+                cur.execute(
+                    f"ALTER TABLE daily_logs ADD COLUMN {col} INTEGER NOT NULL DEFAULT 0"
+                )
+        if "disabled_checks" not in dl_cols:
+            cur.execute(
+                "ALTER TABLE daily_logs ADD COLUMN disabled_checks TEXT NOT NULL DEFAULT ''"
+            )
+            # backfill: projects that don't track deployment -> 'deployed' removed from their logs
+            cur.execute(
+                "UPDATE daily_logs SET disabled_checks = 'deployed' "
+                "WHERE project_id IN (SELECT id FROM projects WHERE tracks_deployment = 0)"
+            )
+        # media_items: starred
+        cur.execute("PRAGMA table_info(media_items)")
+        mi_cols = {row["name"] for row in cur.fetchall()}
+        if "starred" not in mi_cols:
+            cur.execute(
+                "ALTER TABLE media_items ADD COLUMN starred INTEGER NOT NULL DEFAULT 0"
+            )
+        # project_todos: make project_id nullable + add `important` (recreate table)
+        cur.execute("PRAGMA table_info(project_todos)")
+        pt_cols = {row["name"] for row in cur.fetchall()}
+        if "important" not in pt_cols:
+            cur.execute(
+                "CREATE TABLE project_todos_new ("
+                "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+                "project_id INTEGER, "
+                "text TEXT NOT NULL, "
+                "done INTEGER NOT NULL DEFAULT 0, "
+                "important INTEGER NOT NULL DEFAULT 0, "
+                "created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')), "
+                "FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE)"
+            )
+            cur.execute(
+                "INSERT INTO project_todos_new (id, project_id, text, done, created_at) "
+                "SELECT id, project_id, text, done, created_at FROM project_todos"
+            )
+            cur.execute("DROP TABLE project_todos")
+            cur.execute("ALTER TABLE project_todos_new RENAME TO project_todos")
         cur.execute("SELECT value FROM settings WHERE key = 'scan_paths'")
         row = cur.fetchone()
         if not row:
@@ -121,6 +221,68 @@ def init_db():
             cur.execute(
                 "INSERT INTO settings (key, value) VALUES ('scan_paths', ?)",
                 (json.dumps(DEFAULT_SCAN_PATHS),),
+            )
+        # seed categories on first run
+        cur.execute("SELECT COUNT(*) AS c FROM categories")
+        if cur.fetchone()["c"] == 0:
+            for i, name in enumerate(PRESET_CATEGORIES):
+                cur.execute(
+                    "INSERT INTO categories (name, sort_order) VALUES (?, ?)", (name, i)
+                )
+        # one-time migration: single category text -> project_categories join table
+        cur.execute(
+            "SELECT id, category FROM projects WHERE category IS NOT NULL AND category != ''"
+        )
+        for row in cur.fetchall():
+            cur.execute("SELECT id FROM categories WHERE name = ?", (row["category"],))
+            crow = cur.fetchone()
+            if crow:
+                cid = crow["id"]
+            else:
+                cur.execute(
+                    "INSERT INTO categories (name, sort_order) VALUES (?, 99)",
+                    (row["category"],),
+                )
+                cid = cur.lastrowid
+            cur.execute(
+                "INSERT OR IGNORE INTO project_categories (project_id, category_id) VALUES (?, ?)",
+                (row["id"], cid),
+            )
+            cur.execute("UPDATE projects SET category = NULL WHERE id = ?", (row["id"],))
+        # one-time migration: iterations -> per-day checklist on daily_logs
+        cur.execute("SELECT value FROM settings WHERE key = 'iterations_migrated'")
+        if not cur.fetchone():
+            cur.execute("SELECT * FROM iterations")
+            for it in cur.fetchall():
+                cur.execute(
+                    "SELECT id FROM daily_logs WHERE project_id = ? AND date = ?",
+                    (it["project_id"], it["date"]),
+                )
+                row = cur.fetchone()
+                if row:
+                    log_id = row["id"]
+                else:
+                    cur.execute(
+                        "INSERT INTO daily_logs (project_id, date) VALUES (?, ?)",
+                        (it["project_id"], it["date"]),
+                    )
+                    log_id = cur.lastrowid
+                cur.execute(
+                    "UPDATE daily_logs SET "
+                    "claudemd_updated = max(claudemd_updated, ?), "
+                    "memory_updated = max(memory_updated, ?), "
+                    "pushed_to_github = max(pushed_to_github, ?), "
+                    "deployed = max(deployed, ?) WHERE id = ?",
+                    (
+                        it["claudemd_updated"],
+                        it["memory_updated"],
+                        it["pushed_to_github"],
+                        it["deployed"],
+                        log_id,
+                    ),
+                )
+            cur.execute(
+                "INSERT INTO settings (key, value) VALUES ('iterations_migrated', '1')"
             )
 
 
@@ -159,3 +321,5 @@ STAGE_LABELS = {
     "polishing": "进阶优化中",
 }
 STAGE_ORDER = ["sprout", "plan", "in_progress", "mvp_done", "polishing"]
+
+PRESET_CATEGORIES = ["Skill", "公开网站", "工作", "自用", "生活"]

@@ -21,6 +21,40 @@ PROMPT = """你是一个帮我做"vibe coding"日志总结的助手。
 """
 
 
+DESCRIBE_PROMPT = """下面是项目 "{project_name}" 的一些信息（可能是 CLAUDE.md 内容、README，或近期的开发摘要）。
+
+请用一句话（30 字以内的中文）概括这个项目是做什么的。直接输出这句话，不要任何前缀、引号或标点结尾。
+
+--- 项目信息 ---
+{context}
+"""
+
+
+def describe_project(project_name, context, api_key=None):
+    api_key = api_key or os.environ.get("ANTHROPIC_API_KEY")
+    if not api_key or not context.strip():
+        return None
+    try:
+        from anthropic import Anthropic
+        client = Anthropic(api_key=api_key)
+        msg = client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=100,
+            messages=[
+                {
+                    "role": "user",
+                    "content": DESCRIBE_PROMPT.format(
+                        project_name=project_name,
+                        context=context[:8000],
+                    ),
+                }
+            ],
+        )
+        return msg.content[0].text.strip()
+    except Exception as e:
+        return f"[AI 生成失败：{e}]"
+
+
 def summarize(project_name, commits, diff, api_key=None):
     api_key = api_key or os.environ.get("ANTHROPIC_API_KEY")
     if not api_key:

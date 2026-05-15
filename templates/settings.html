@@ -34,8 +34,34 @@
   </div>
 </form>
 
+<hr class="section-divider">
+<section class="settings-block">
+  <h2>分类标签管理</h2>
+  <p class="muted small">这里管理项目分类。重命名会同步更新所有用到该分类的项目；删除会把对应项目变为"未分类"。</p>
+  <ul class="cat-list">
+    {% for c in categories %}
+    <li class="cat-row">
+      <form method="post" action="{{ url_for('category_rename') }}" class="inline">
+        <input type="hidden" name="id" value="{{ c.id }}">
+        <input type="text" name="new_name" value="{{ c.name }}" class="cat-name-input">
+        <button class="btn-sm">重命名</button>
+      </form>
+      <form method="post" action="{{ url_for('category_delete') }}" class="inline-delete">
+        <input type="hidden" name="id" value="{{ c.id }}">
+        <button class="btn-sm danger" onclick="return confirm('删除分类「{{ c.name }}」？用它的项目会变成未分类。')">删除</button>
+      </form>
+    </li>
+    {% endfor %}
+  </ul>
+  <form method="post" action="{{ url_for('category_add') }}" class="cat-add">
+    <input type="text" name="name" placeholder="新增分类名…" required>
+    <button class="btn-sm btn-primary">新增</button>
+  </form>
+</section>
+
 {% if excluded %}
-<section>
+<hr class="section-divider">
+<section class="settings-block">
   <h2>已排除的扫描结果</h2>
   <ul>
     {% for p in excluded %}

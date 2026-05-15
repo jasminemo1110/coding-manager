@@ -1,0 +1,144 @@
+# 茉白的 Coding 工作台 (coding-dashboard)
+
+本地 Flask 工具，把所有 vibe coding 项目集中到一个看板：阶段、每日改动（git + AI 摘要）、清单、待办、笔记、自媒体、参考资料。**单用户、本地运行**，UI 是 Claude.ai 风格的暖白底 + 橙棕点缀。
+
+## 运行
+
+```bash
+cd /Users/lixiaonan/code/coding-dashboard
+./.venv/bin/python app.py
+```
+
+打开 <http://localhost:8765>。首次启动会自动建表/迁移。
+
+## 技术栈
+
+- **后端**：Python 3 + Flask（`app.py` 单文件路由 + `db.py` SQLite 层 + `scanner.py` git 扫描 + `ai.py` Claude Haiku 调用）
+- **存储**：SQLite（`data.db`，工程目录下，gitignore）
+- **前端**：Jinja2 模板 + 原生 JS + 手写 CSS（无构建步骤）
+- **AI**：`claude-haiku-4-5-20251001` 用于每日摘要和项目一句话描述
+
+## 关键文件
+
+```
+app.py             # 全部路由（dashboard / project / notes / media / settings / sync / exports）
+db.py              # SQLite schema + 一次性迁移逻辑（init_db 幂等）
+scanner.py         # 扫描 ~/code 等目录、git log/diff/remote 状态、CLAUDE.md/memory mtime、GitHub API 可见性
+ai.py              # Claude Haiku：summarize（每日改动摘要，含"放弃了什么"）+ describe_project（一句话项目简介）
+templates/
+  base.html         # 顶栏 + 全局布局
+  dashboard.html    # 项目看板：top-row(待办+coding日历) + 三栏 project_row(项目|自媒体|待办)
+  project.html      # 项目详情：每日日志（含 commit/AI摘要/手动补充/per-day 清单/关联笔记）+ 项目笔记 + 自媒体
+  notes.html        # "学习"页：学习笔记 + 参考资料
+  media.html        # 自媒体总览
+  settings.html     # 扫描路径 / API Key / 分类管理 / 已排除项
+static/
+  style.css         # 全部样式
+  app.js            # 所有前端交互（DOMContentLoaded 一个大处理器）
+data.db            # 自动生成，不入库
+.venv/             # 不入库
+```
+
+## 数据模型核心要点
+
+```sql
+projects        -- id, name, path, github_repo, github_visibility, github_repo_public,
+                -- stage, category(legacy迁完留空), description, online_url, online_status,
+                -- tracks_deployment, starred, excluded_from_scan, ...
+project_categories  -- 多对多：(project_id, category_id)
+categories          -- id, name, sort_order
+
+daily_logs      -- id, project_id, date, auto_summary, manual_notes, raw_commits_json,
+                -- claudemd_updated, memory_updated, pushed_to_github, deployed,
+                -- disabled_checks ('comma-separated list of fields removed from this day's checklist')
+                -- UNIQUE(project_id, date)
+
+project_todos   -- id, project_id (NULLABLE for global todos), text, done, important
+                -- 全局手动待办 = project_id IS NULL
+                -- 顶部待办面板 = 全局待办 ∪ important=1 的项目待办
+
+media_items     -- id, project_id, type, title, status, link, notes, starred
+
+notes           -- id, project_id (NULL=学习笔记/全局), title, body, tags, linked_daily_log_id
+                -- 学习页只展示 project_id IS NULL 的；项目笔记留在项目页
+
+reference_items -- id, title, body, links (JSON: [{name, url}, ...])
+                -- 参考资料，每条带任意条命名链接
+
+settings        -- key, value（含 scan_paths, anthropic_api_key, github_token,
+                -- iterations_migrated 这类幂等标记）
+
+iterations      -- 历史遗留，已迁入 daily_logs 的清单字段。表保留以防回滚，不再读写。
+```
+
+## 关键约定
+
+### 清单（每日日志的 4 项 check）
+- 4 项：`CLAUDE.md / memory / GitHub / 部署`，靠 `daily_logs` 上的 4 个布尔列追踪
+- **`disabled_checks`** 是一个逗号分隔字符串，记录该天**不显示/不催办**的项
+- 新日志默认值：项目 `tracks_deployment = 0` → "deployed" 加入 disabled；项目无 CLAUDE.md 文件 → "claudemd_updated" 加入 disabled
+- 用户在前端用 × 把项移出当天清单 → 后端 `log_check_disable` 加入 disabled_checks；＋ 加回 → `log_check_enable` 移除
+- 顶部"待办"面板的"未勾选"汇总只看 `log_active_fields(log)`（不在 disabled 集合的项）
+
+### 自动检测（`sync_one_project`）
+3 项自动检测，**每次同步都覆盖式写入**（因为它们是可精确测量的事实，不该有"过去检测错了一直留着"的状态）：
+- `claudemd_updated = 1 if "CLAUDE.md" in <今天 git log --name-only>` —— 检测的是"今天的 commit 有没有改这个文件"，不是 diff 文本搜索
+- `pushed_to_github = 1 if git rev-list HEAD --not --remotes --count == 0` —— 无 upstream/无 remote 时该命令仍能工作（所有 commit 都算未推）
+- `memory_updated = 1 if ~/.claude/projects/<encoded>/memory/* 的 mtime 是今天`
+- `deployed` 不自动检测，纯手动
+
+同步时还会重新调 GitHub API 刷新 `github_visibility`（保留 Story Page 类问题的修复）。
+
+### 待办（三层）
+- **顶部面板的清单状态行**：每个项目"最近有 commit 的那一天"，未勾选的 active 清单项
+- **顶部面板的可勾选待办**：全局手动待办（project_id IS NULL，从 manual-todo-form 回车创建）+ important=1 的项目待办
+- **每个项目右侧的待办列**：该项目的 project_todos，每条带 ★ 重要切换（点亮 → 同步出现在顶部面板）
+
+### 笔记
+- 项目页的笔记（关联到某天的 + 项目笔记）和"学习"页的学习笔记都用同一张 `notes` 表，`project_id IS NULL` 区分全局
+- 长正文：CSS line-clamp 3 行 + JS 检测 `scrollHeight > clientHeight` 加 `.is-clipped`，点击打开 `#note-modal` 完整展开
+- 项目笔记 → 项目页编辑/删除/导出；学习笔记 → 学习页单条/全部导出（`/export/note/<id>` 和 `/export/global-notes`）
+
+### 卡片导航
+看板的项目卡片是 `<div class="card" data-href="...">` —— JS 的 `card.addEventListener('click')` 实现整卡跳转，但忽略点在 `.stage-select / .star-btn / .category-picker / .badge[data-href]` 上的事件。**不要把卡片改回 `<a>`**，多层级嵌套交互在 `<a>` 里 HTML 不合法。
+
+### 分类
+- `categories` 表存预设 + 用户加的；`project_categories` 多对多
+- 旧的 `projects.category` text 列已迁完留空（保留不破坏 SQLite）
+- 看板卡片上的"＋ 分类"按钮是 `<details>`-like popover —— **当 popover 打开时给 `.card` 加 `.popover-open { z-index: 50 }`**，否则被后面的卡片盖住（card hover 的 `transform` 创建了层叠上下文）
+
+### 导出
+- 全部用 `text_response()`，**Content-Disposition 必须 RFC 5987 编码中文文件名**（`filename*=UTF-8''<percent-encoded>` + ASCII fallback），否则 Chrome 会拒下载
+
+### 端口
+默认 8765。曾经用过 5173 撞过用户其它项目，**不要改回去**。
+
+## 数据库迁移惯例
+
+所有迁移在 `db.init_db()` 里，**幂等**：
+- 列：`PRAGMA table_info(table)` 检查是否存在，否则 `ALTER TABLE ... ADD COLUMN`
+- 表：`CREATE TABLE IF NOT EXISTS`
+- 数据迁移（一次性）：用 `settings` 表的标志位（如 `iterations_migrated='1'`）保证不重跑
+- 改列约束（SQLite 限制）：`CREATE _new + INSERT SELECT + DROP + RENAME`（已在 project_todos 用过）
+
+## AI 调用注意
+
+- API Key 存 `settings.anthropic_api_key`，不入库（settings 表数据是 data.db 一部分，data.db 在 .gitignore）
+- 没设 key 时所有 AI 调用静默跳过/返回 None，UI 给"未设置 Claude API Key"的提示
+- 摘要的 prompt 在 `ai.py` 里有完整中文（含"放弃了什么"的部分），改 prompt 时注意保留这一约定
+
+## 已知边界
+
+- 历史 commit 的清单**不自动检测**——只从今天起 sync 时自动填 CLAUDE.md / GitHub / memory
+- `memory_updated` 只能识别"今天 mtime"，无法追溯历史某天是否更新过 memory
+- 部署状态完全人工
+- 单用户单进程，没做并发/锁
+- 导出文件落到浏览器下载目录，不是工程目录
+- 在 Claude Code preview iframe 里点导出可能被沙箱拦截，要在真实浏览器里打开
+
+## 启动后第一次使用
+
+1. 进**设置**填 `Claude API Key`（可选）+ GitHub Token（可选，识别私有仓库可见性）
+2. 看板会列出 `~/code` 和 `~/.claude/skills` 下扫到的 git 仓库作"建议"，挨个"添加"或"排除"
+3. 给每个项目编辑里设好阶段、分类、是否追踪部署
+4. 每天工作完点"🔄 同步今天" → 自动拉 commit + AI 摘要 + 检测清单 3 项

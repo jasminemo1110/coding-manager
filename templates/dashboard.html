@@ -1,28 +1,94 @@
 {% extends "base.html" %}
-{% block title %}看板{% endblock %}
+{% block title %}项目{% endblock %}
 {% block content %}
 
 <div class="page-head">
-  <h1>看板</h1>
+  <h1>项目</h1>
   <div class="head-actions">
     <button class="btn btn-primary" id="sync-today-btn" data-url="{{ url_for('sync_today_all') }}">🔄 同步今天（全部项目）</button>
+    <button class="btn" id="sync-history-btn" data-url="{{ url_for('sync_history_all') }}" title="把所有项目的全部历史 commit 拉进来（仅 commit 列表，不调 AI）">📥 导入历史</button>
     <button class="btn" onclick="document.getElementById('add-project-dialog').showModal()">＋ 新项目</button>
   </div>
 </div>
 
-{% if todos %}
-<section class="todos">
-  <h2>待办</h2>
-  <ul>
-    {% for t in todos %}
-      <li>
-        <a href="{{ url_for('project_detail', pid=t.project_id) }}"><strong>{{ t.project_name }}</strong></a>
-        <span class="todo-kind todo-{{ t.kind }}">{{ t.text }}</span>
+<div class="top-row">
+  <section class="todos">
+    <h2>待办</h2>
+    <form method="post" action="{{ url_for('global_todo_add') }}" class="manual-todo-form">
+      <input type="hidden" name="redirect_to" value="{{ url_for('dashboard', stage=stage_filter, category=category_filter, sort=sort_by) }}">
+      <input type="text" name="text" placeholder="手动补充，回车添加…" required>
+    </form>
+    {% if panel_todos %}
+    <ul class="panel-todo-list">
+      {% for t in panel_todos %}
+      <li class="panel-todo-row {% if t.done %}done{% endif %} {% if t.important %}important{% endif %}">
+        <label class="check">
+          <input type="checkbox" {% if t.done %}checked{% endif %} data-todo-toggle="{{ url_for('project_todo_toggle', tid=t.id) }}">
+          <span>{{ t.text }}</span>
+        </label>
+        {% if t.project_name %}<a class="panel-todo-proj" href="{{ url_for('project_detail', pid=t.project_id) }}">{{ t.project_name }}</a>{% endif %}
+        <form method="post" action="{{ url_for('project_todo_delete', tid=t.id) }}" class="inline-delete">
+          <input type="hidden" name="redirect_to" value="{{ url_for('dashboard', stage=stage_filter, category=category_filter, sort=sort_by) }}">
+          <button class="btn-sm danger">×</button>
+        </form>
       </li>
-    {% endfor %}
-  </ul>
-</section>
-{% endif %}
+      {% endfor %}
+    </ul>
+    {% endif %}
+    {% if todos %}
+    <ul class="checklist-status-list">
+      {% for t in todos %}
+        <li>
+          <a class="todo-link" href="{{ url_for('project_detail', pid=t.project_id) }}">
+            <strong>{{ t.project_name }}</strong>
+            <span class="todo-kind todo-{{ t.kind }}">{{ t.text }}</span>
+          </a>
+        </li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+    {% if not panel_todos and not todos %}
+    <p class="muted small">暂无待办。</p>
+    {% endif %}
+  </section>
+
+  <section class="heatmap-section">
+    <h2>coding 日历 <span class="muted small">· 每天 coding 项目数（近半年）</span></h2>
+    <div class="hm-months">
+      {% for week in heatmap %}
+        <span class="hm-month">{{ week.month or '' }}</span>
+      {% endfor %}
+    </div>
+    <div class="heatmap-body">
+      <div class="hm-weekdays">
+        <span>一</span><span></span><span>三</span><span></span><span>五</span><span></span><span>日</span>
+      </div>
+      <div class="heatmap">
+        {% for week in heatmap %}
+        <div class="hm-week">
+          {% for day in week.days %}
+            {% if day %}
+              <span class="hm-cell hm-l{{ 4 if day.count >= 4 else day.count }}"
+                    title="{{ day.date }}{% if day.projects %} · {{ day.projects|join('、') }}{% else %} · 无更新{% endif %}"></span>
+            {% else %}
+              <span class="hm-cell hm-empty"></span>
+            {% endif %}
+          {% endfor %}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    <div class="hm-legend">
+      <span class="muted small">少</span>
+      <span class="hm-cell hm-l0"></span>
+      <span class="hm-cell hm-l1"></span>
+      <span class="hm-cell hm-l2"></span>
+      <span class="hm-cell hm-l3"></span>
+      <span class="hm-cell hm-l4"></span>
+      <span class="muted small">多</span>
+    </div>
+  </section>
+</div>
 
 {% if suggestions %}
 <section class="suggestions">
@@ -47,52 +113,169 @@
 {% endif %}
 
 <div class="filter-bar">
-  <a href="{{ url_for('dashboard') }}" class="chip {% if stage_filter=='all' %}active{% endif %}">全部</a>
+  <span class="filter-label">阶段：</span>
+  <a href="{{ url_for('dashboard', sort=sort_by, category=category_filter) }}" class="chip {% if stage_filter=='all' %}active{% endif %}">全部</a>
   {% for s in stage_order %}
-    <a href="{{ url_for('dashboard', stage=s) }}" class="chip {% if stage_filter==s %}active{% endif %}">{{ stage_labels[s] }}</a>
+    <a href="{{ url_for('dashboard', stage=s, sort=sort_by, category=category_filter) }}" class="chip {% if stage_filter==s %}active{% endif %}">{{ stage_labels[s] }}</a>
   {% endfor %}
 </div>
 
-<div class="grid">
+<div class="filter-bar">
+  <span class="filter-label">分类：</span>
+  <a href="{{ url_for('dashboard', stage=stage_filter, sort=sort_by) }}" class="chip {% if category_filter=='all' %}active{% endif %}">全部</a>
+  {% for c in categories %}
+    <a href="{{ url_for('dashboard', stage=stage_filter, sort=sort_by, category=c.name) }}" class="chip {% if category_filter==c.name %}active{% endif %}">{{ c.name }}</a>
+  {% endfor %}
+  <span class="filter-label" style="margin-left:1.5rem">排序：</span>
+  {% for key, label in [('stage','按阶段'),('created','按创建时间'),('updated','按最近更新')] %}
+    <a href="{{ url_for('dashboard', stage=stage_filter, category=category_filter, sort=key) }}" class="chip {% if sort_by==key %}active{% endif %}">{{ label }}</a>
+  {% endfor %}
+</div>
+
+<div class="project-rows">
   {% for p in projects %}
-  <a class="card" href="{{ url_for('project_detail', pid=p.id) }}">
-    <div class="card-head">
-      <h3>{{ p.name }}</h3>
-      <select class="stage-select stage-{{ p.stage }}"
-              data-url="{{ url_for('project_stage', pid=p.id) }}"
-              onclick="event.preventDefault(); event.stopPropagation()">
-        {% for s in stage_order %}
-          <option value="{{ s }}" {% if p.stage == s %}selected{% endif %}>{{ stage_labels[s] }}</option>
-        {% endfor %}
-      </select>
+  <div class="project-row">
+    <div class="card project-col {% if p.starred %}starred{% endif %}" data-href="{{ url_for('project_detail', pid=p.id) }}">
+      <div class="card-head">
+        <h3>{{ p.name }}</h3>
+        <button type="button" class="star-btn {% if p.starred %}starred{% endif %}"
+                data-url="{{ url_for('project_star_toggle', pid=p.id) }}" title="收藏 / 重要">★</button>
+        <select class="stage-select stage-{{ p.stage }}"
+                data-url="{{ url_for('project_stage', pid=p.id) }}">
+          {% for s in stage_order %}
+            <option value="{{ s }}" {% if p.stage == s %}selected{% endif %}>{{ stage_labels[s] }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      {% if p.live and p.live.last_commit_date %}
+      <p class="muted small">
+        {% if p.live.first_commit_date %}创建 {{ p.live.first_commit_date }} · {% endif %}最近更新 {{ p.live.last_commit_date }}
+      </p>
+      {% elif not p.path %}
+      <p class="muted small">想法阶段 · 暂无路径</p>
+      {% endif %}
+      <div class="card-controls">
+        <div class="category-picker">
+          <button type="button" class="category-btn">
+            {% if p.categories %}
+              {% for c in p.categories %}<span class="cat-chip">{{ c.name }}</span>{% endfor %}
+            {% else %}
+              <span class="cat-placeholder">＋ 分类</span>
+            {% endif %}
+          </button>
+          <div class="category-popover" hidden>
+            {% for c in categories %}
+            <label class="check">
+              <input type="checkbox" data-cat-toggle
+                     data-url="{{ url_for('project_category_toggle', pid=p.id) }}"
+                     value="{{ c.id }}" {% if c.id in p.category_ids %}checked{% endif %}>
+              <span>{{ c.name }}</span>
+            </label>
+            {% else %}
+            <p class="muted small">去「设置」里添加分类</p>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+      <div class="badges">
+        {% if p.live and p.live.has_claudemd %}<span class="badge">📝 CLAUDE.md</span>{% endif %}
+        {% if p.github_repo %}
+          {% set vis = p.github_visibility or 'unknown' %}
+          <span class="badge badge-{{ vis }}" data-href="https://github.com/{{ p.github_repo }}" onclick="event.stopPropagation(); window.open(this.dataset.href,'_blank')">
+            {% if vis == 'public' %}🌱 开源{% elif vis == 'private' %}🔒 {{ p.github_repo.split('/')[-1] if '/' in p.github_repo else 'GitHub' }}{% else %}⬆ GitHub{% endif %}
+          </span>
+        {% endif %}
+        {% if p.github_repo_public %}
+          <span class="badge badge-public" data-href="https://github.com/{{ p.github_repo_public }}" onclick="event.stopPropagation(); window.open(this.dataset.href,'_blank')">
+            🌱 开源
+          </span>
+        {% endif %}
+        {% if p.online_status and p.online_url %}
+          <span class="badge" data-href="{{ p.online_url }}" onclick="event.stopPropagation(); window.open(this.dataset.href,'_blank')">🌐 已上线</span>
+        {% endif %}
+      </div>
     </div>
-    {% if p.live and p.live.last_commit_date %}
-    <p class="muted small">最近 commit · {{ p.live.last_commit_date }}</p>
-    {% elif not p.path %}
-    <p class="muted small">想法阶段 · 暂无路径</p>
-    {% endif %}
-    <div class="badges">
-      {% if p.live and p.live.has_claudemd %}<span class="badge">📝 CLAUDE.md</span>{% endif %}
-      {% if p.github_repo %}
-        <span class="badge badge-private" data-href="https://github.com/{{ p.github_repo }}" onclick="event.preventDefault(); event.stopPropagation(); window.open(this.dataset.href,'_blank')">
-          🔒 {{ p.github_repo.split('/')[-1] if '/' in p.github_repo else 'GitHub' }}
-        </span>
-      {% endif %}
-      {% if p.github_repo_public %}
-        <span class="badge badge-public" data-href="https://github.com/{{ p.github_repo_public }}" onclick="event.preventDefault(); event.stopPropagation(); window.open(this.dataset.href,'_blank')">
-          🌱 开源
-        </span>
-      {% endif %}
-      {% if p.online_status and p.online_url %}
-        <span class="badge" data-href="{{ p.online_url }}" onclick="event.preventDefault(); event.stopPropagation(); window.open(this.dataset.href,'_blank')">🌐 已上线</span>
-      {% endif %}
-      {% if p.media_count %}<span class="badge">🎬 {{ p.media_count }} 条媒体</span>{% endif %}
+    <div class="media-col">
+      {% for m in p.media_items %}
+        <button type="button" class="media-chip status-{{ m.status }} {% if m.starred %}starred{% endif %}"
+                data-media-id="{{ m.id }}"
+                data-title="{{ m.title }}"
+                data-type="{{ m.type }}"
+                data-status="{{ m.status }}"
+                data-notes="{{ m.notes or '' }}">
+          <span class="media-star {% if m.starred %}on{% endif %}" data-url="{{ url_for('media_star_toggle', mid=m.id) }}" title="标记重要">★</span>
+          <span class="media-type">{{ '🎬' if m.type == 'video' else '📝' }}</span>
+          <span class="media-chip-title">{{ m.title }}</span>
+          <span class="media-chip-status">{{ m.status }}</span>
+        </button>
+      {% endfor %}
+      <button class="media-add-btn {% if not p.media_items %}empty{% endif %}" data-project-id="{{ p.id }}" data-project-name="{{ p.name }}">
+        {% if p.media_items %}＋{% else %}＋ 添加自媒体内容{% endif %}
+      </button>
     </div>
-  </a>
+    <div class="todo-col">
+      <form method="post" action="{{ url_for('project_todo_add', pid=p.id) }}" class="todo-col-add">
+        <input type="hidden" name="redirect_to" value="{{ url_for('dashboard', stage=stage_filter, category=category_filter, sort=sort_by) }}">
+        <input type="text" name="text" placeholder="＋ 加一条待办，回车…" required>
+      </form>
+      {% for t in p.project_todos %}
+      <div class="todo-row {% if t.done %}done{% endif %} {% if t.important %}important{% endif %}">
+        <label class="check">
+          <input type="checkbox" {% if t.done %}checked{% endif %} data-todo-toggle="{{ url_for('project_todo_toggle', tid=t.id) }}">
+          <span>{{ t.text }}</span>
+        </label>
+        <button type="button" class="todo-important-btn {% if t.important %}on{% endif %}"
+                data-url="{{ url_for('project_todo_important', tid=t.id) }}"
+                title="标为重要 · 同步到顶部待办区">★</button>
+        <form method="post" action="{{ url_for('project_todo_delete', tid=t.id) }}" class="inline-delete">
+          <input type="hidden" name="redirect_to" value="{{ url_for('dashboard', stage=stage_filter, category=category_filter, sort=sort_by) }}">
+          <button class="btn-sm danger">×</button>
+        </form>
+      </div>
+      {% else %}
+      <p class="todo-col-empty muted small">还没有待办</p>
+      {% endfor %}
+    </div>
+  </div>
   {% else %}
   <p class="empty muted">还没有项目。点右上角"新项目"，或在「设置」里检查扫描路径。</p>
   {% endfor %}
 </div>
+
+<dialog id="add-media-dialog" class="dialog">
+  <form method="post" action="{{ url_for('media_new') }}">
+    <input type="hidden" name="project_id" id="media-dialog-pid">
+    <input type="hidden" name="redirect_to" value="{{ url_for('dashboard', stage=stage_filter, category=category_filter, sort=sort_by) }}">
+    <h3>为 <span id="media-dialog-project"></span> 添加自媒体内容</h3>
+    <label>标题 <input type="text" name="title" required></label>
+    <label>类型 <select name="type"><option value="video">视频</option><option value="article">文章</option></select></label>
+    <label>状态 <select name="status"><option value="planned">planned</option><option value="in-progress">in-progress</option><option value="done">done</option></select></label>
+    <label>策划 / 备注 <textarea name="notes" rows="3" placeholder="这条内容打算怎么做…"></textarea></label>
+    <div class="dialog-actions">
+      <button type="button" onclick="this.closest('dialog').close()" class="btn">取消</button>
+      <button type="submit" class="btn btn-primary">添加</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="media-edit-dialog" class="dialog">
+  <form method="post" id="media-edit-form">
+    <input type="hidden" name="redirect_to" value="{{ url_for('dashboard', stage=stage_filter, category=category_filter, sort=sort_by) }}">
+    <h3>编辑自媒体内容</h3>
+    <label>标题 <input type="text" name="title" id="me-title" required></label>
+    <label>类型 <select name="type" id="me-type"><option value="video">视频</option><option value="article">文章</option></select></label>
+    <label>状态 <select name="status" id="me-status"><option value="planned">planned</option><option value="in-progress">in-progress</option><option value="done">done</option></select></label>
+    <label>策划 / 备注 <textarea name="notes" id="me-notes" rows="4"></textarea></label>
+    <div class="dialog-actions">
+      <button type="button" onclick="this.closest('dialog').close()" class="btn">取消</button>
+      <button type="submit" class="btn btn-primary">保存</button>
+    </div>
+  </form>
+  <form method="post" id="media-delete-form" class="danger-zone">
+    <input type="hidden" name="redirect_to" value="{{ url_for('dashboard', stage=stage_filter, category=category_filter, sort=sort_by) }}">
+    <button class="btn-sm danger" onclick="return confirm('删除这条自媒体内容？')">删除这条内容</button>
+  </form>
+</dialog>
 
 <dialog id="add-project-dialog" class="dialog">
   <form method="post" action="{{ url_for('project_add') }}">
@@ -104,6 +287,14 @@
         {% for s in stage_order %}<option value="{{ s }}">{{ stage_labels[s] }}</option>{% endfor %}
       </select>
     </label>
+    <fieldset class="cat-checkboxes">
+      <legend>分类标签（可多选）</legend>
+      {% for c in categories %}
+      <label class="check"><input type="checkbox" name="category_ids" value="{{ c.id }}"> {{ c.name }}</label>
+      {% else %}
+      <span class="muted small">去「设置」里添加分类</span>
+      {% endfor %}
+    </fieldset>
     <label>上线 URL（可选）<input type="url" name="online_url"></label>
     <div class="dialog-actions">
       <button type="button" onclick="this.closest('dialog').close()" class="btn">取消</button>

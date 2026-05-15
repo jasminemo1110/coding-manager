@@ -74,6 +74,7 @@ def get_repo_info(path):
         "github_repo": None,
         "last_commit_date": None,
         "last_commit_msg": None,
+        "first_commit_date": None,
         "has_claudemd": False,
         "claudemd_mtime": None,
         "has_unpushed": False,
@@ -94,6 +95,10 @@ def get_repo_info(path):
         info["last_commit_date"] = d[:10]
         info["last_commit_msg"] = msg
 
+    first, _ = run(["git", "log", "--format=%ci", "--reverse"], cwd=path, timeout=15)
+    if first:
+        info["first_commit_date"] = first.splitlines()[0][:10]
+
     claudemd = os.path.join(path, "CLAUDE.md")
     if os.path.isfile(claudemd):
         info["has_claudemd"] = True
@@ -101,11 +106,16 @@ def get_repo_info(path):
             os.path.getmtime(claudemd)
         ).isoformat()
 
-    # Check unpushed commits
-    unpushed, rc = run(["git", "rev-list", "@{u}..HEAD", "--count"], cwd=path)
+    # Check unpushed commits. Robust when there's no upstream/remote:
+    # counts HEAD commits not present in ANY remote. With no remote at all,
+    # every commit counts as unpushed (which is correct).
+    unpushed, rc = run(
+        ["git", "rev-list", "HEAD", "--not", "--remotes", "--count"], cwd=path
+    )
     if rc == 0 and unpushed.isdigit():
         info["unpushed_count"] = int(unpushed)
         info["has_unpushed"] = int(unpushed) > 0
+    info["has_remote"] = bool(info["remote_url"])
 
     for marker, ptype in [
         ("package.json", "node"),
@@ -151,6 +161,68 @@ def get_todays_commits(path, since_iso=None):
     if len(diff) > 20000:
         diff = diff[:20000] + "\n... (truncated)"
     return commits, diff + "\n\n--- stats ---\n" + stats
+
+
+def get_all_commits_by_day(path):
+    """Return dict of {YYYY-MM-DD: [commit dicts]} for full git history."""
+    if not is_git_repo(path):
+        return {}
+    out, _ = run(
+        ["git", "log", "--format=%H%x1f%ci%x1f%s", "--no-merges"],
+        cwd=path,
+        timeout=30,
+    )
+    by_day = {}
+    for line in out.splitlines():
+        if "\x1f" not in line:
+            continue
+        parts = line.split("\x1f")
+        if len(parts) < 3:
+            continue
+        h, ci, subject = parts[0], parts[1], parts[2]
+        day = ci[:10]
+        by_day.setdefault(day, []).append({"hash": h, "date": ci, "subject": subject})
+    return by_day
+
+
+def get_todays_changed_files(path, since_iso=None):
+    """Set of file paths modified in today's commits (precise — not a diff text search)."""
+    if not is_git_repo(path):
+        return set()
+    since = since_iso or date.today().isoformat()
+    out, _ = run(
+        ["git", "log", f"--since={since} 00:00", "--name-only", "--format=", "--no-merges"],
+        cwd=path,
+    )
+    return {line.strip() for line in out.splitlines() if line.strip()}
+
+
+def get_commits_for_day(path, day_iso):
+    """Return commits + diff for a specific date (YYYY-MM-DD)."""
+    if not is_git_repo(path):
+        return [], ""
+    after = f"{day_iso} 00:00"
+    before = f"{day_iso} 23:59:59"
+    out, _ = run(
+        ["git", "log", f"--since={after}", f"--until={before}",
+         "--format=%H%x1f%ci%x1f%s", "--no-merges"],
+        cwd=path,
+    )
+    commits = []
+    for line in out.splitlines():
+        if "\x1f" in line:
+            parts = line.split("\x1f")
+            if len(parts) >= 3:
+                commits.append({"hash": parts[0], "date": parts[1], "subject": parts[2]})
+    diff, _ = run(
+        ["git", "log", f"--since={after}", f"--until={before}",
+         "-p", "--no-merges", "--format=", "--unified=1"],
+        cwd=path,
+        timeout=15,
+    )
+    if len(diff) > 20000:
+        diff = diff[:20000] + "\n... (truncated)"
+    return commits, diff
 
 
 def memory_dir_for_project(path):

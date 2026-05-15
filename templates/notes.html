@@ -1,63 +1,112 @@
 {% extends "base.html" %}
-{% block title %}笔记{% endblock %}
+{% block title %}学习{% endblock %}
 {% block content %}
 
 <div class="page-head">
-  <h1>笔记</h1>
-  <div class="head-actions">
-    <button class="btn" onclick="document.getElementById('new-global-note').showModal()">＋ 新建全局笔记</button>
-    <a class="btn" href="{{ url_for('export_global_notes') }}">⬇ 导出全部全局笔记</a>
-    <a class="btn" href="{{ url_for('export_all_notes') }}">⬇ 导出所有笔记</a>
-  </div>
+  <h1>学习</h1>
 </div>
 
 <form class="search-bar" method="get">
-  <input type="search" name="q" value="{{ q }}" placeholder="搜索标题、正文、标签…">
+  <input type="search" name="q" value="{{ q }}" placeholder="搜索学习笔记、参考资料…">
   <button class="btn-sm">搜索</button>
   {% if q %}<a class="btn-sm" href="{{ url_for('notes_list') }}">清除</a>{% endif %}
 </form>
 
-{% if not notes %}
-  <p class="empty muted">还没有笔记。可以从右上"新建全局笔记"开始。</p>
-{% endif %}
-
-<ul class="note-list">
-  {% for n in notes %}
-  <li class="note-card">
-    <div class="note-card-head">
-      <strong>{{ n.title }}</strong>
-      <span class="muted small">
-        {% if n.project_name %}<span class="proj-tag">{{ n.project_name }}</span>{% else %}<span class="proj-tag global">全局</span>{% endif %}
-        · {{ n.updated_at[:10] }}
-        {% if n.tags %} · {{ n.tags }}{% endif %}
-      </span>
+<div class="learn-cols">
+  <section class="learn-section">
+    <div class="section-head">
+      <h2>学习笔记</h2>
+      <div class="head-actions">
+        <button class="btn-sm" onclick="document.getElementById('new-note-dialog').showModal()">＋ 新建</button>
+        <a class="btn-sm" href="{{ url_for('export_global_notes') }}" download>⬇ 全部导出</a>
+      </div>
     </div>
-    <div class="note-body">{{ n.body }}</div>
-    <div class="note-actions">
-      <details>
-        <summary class="btn-sm">编辑</summary>
-        <form method="post" action="{{ url_for('note_edit', nid=n.id) }}">
-          <input type="hidden" name="redirect_to" value="{{ url_for('notes_list', q=q) }}">
-          <input type="text" name="title" value="{{ n.title }}" required>
-          <textarea name="body" rows="4">{{ n.body }}</textarea>
-          <input type="text" name="tags" value="{{ n.tags or '' }}" placeholder="标签">
-          <button class="btn-sm btn-primary">保存</button>
-        </form>
-      </details>
-      <form method="post" action="{{ url_for('note_delete', nid=n.id) }}" class="inline-delete">
-        <input type="hidden" name="redirect_to" value="{{ url_for('notes_list', q=q) }}">
-        <button class="btn-sm danger" onclick="return confirm('删除笔记？')">删除</button>
-      </form>
-    </div>
-  </li>
-  {% endfor %}
-</ul>
+    {% if not notes %}<p class="muted small">还没有学习笔记。记录 vibe coding 期间学到的新知识、想法。</p>{% endif %}
+    <ul class="note-list">
+      {% for n in notes %}
+      <li class="note-card">
+        <div class="note-card-head note-clickable" data-note-title="{{ n.title }}" data-note-body="{{ n.body or '' }}">
+          <strong>{{ n.title }}</strong>
+          <span class="muted small">{{ n.updated_at[:10] }}{% if n.tags %} · {{ n.tags }}{% endif %}</span>
+        </div>
+        {% if n.body %}<div class="note-body note-body-clip note-clickable" data-note-title="{{ n.title }}" data-note-body="{{ n.body or '' }}">{{ n.body }}</div>{% endif %}
+        <div class="note-actions">
+          <details>
+            <summary class="btn-sm">编辑</summary>
+            <form method="post" action="{{ url_for('note_edit', nid=n.id) }}">
+              <input type="hidden" name="redirect_to" value="{{ url_for('notes_list', q=q) }}">
+              <input type="text" name="title" value="{{ n.title }}" required>
+              <textarea name="body" rows="5">{{ n.body }}</textarea>
+              <input type="text" name="tags" value="{{ n.tags or '' }}" placeholder="标签（逗号分隔）">
+              <button class="btn-sm btn-primary">保存</button>
+            </form>
+          </details>
+          <a class="btn-sm" href="{{ url_for('export_note', nid=n.id) }}" download>导出</a>
+          <form method="post" action="{{ url_for('note_delete', nid=n.id) }}" class="inline-delete">
+            <input type="hidden" name="redirect_to" value="{{ url_for('notes_list', q=q) }}">
+            <button class="btn-sm danger" onclick="return confirm('删除这条笔记？')">删除</button>
+          </form>
+        </div>
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
 
-<dialog id="new-global-note" class="dialog">
+  <section class="learn-section">
+    <div class="section-head">
+      <h2>参考资料</h2>
+      <button class="btn-sm" onclick="document.getElementById('new-ref-dialog').showModal()">＋ 新建</button>
+    </div>
+    {% if not references %}<p class="muted small">还没有参考资料。可以记一段文字，或贴一条链接。</p>{% endif %}
+    <ul class="ref-list">
+      {% for r in references %}
+      <li class="ref-card">
+        <div class="ref-card-head"><strong>{{ r.title }}</strong></div>
+        {% if r.body %}<div class="note-body">{{ r.body }}</div>{% endif %}
+        {% if r.link_list %}
+        <ul class="ref-links">
+          {% for lk in r.link_list %}
+          <li><a href="{{ lk.url }}" target="_blank">🔗 {{ lk.name }}</a></li>
+          {% endfor %}
+        </ul>
+        {% endif %}
+        <div class="note-actions">
+          <details>
+            <summary class="btn-sm">编辑</summary>
+            <form method="post" action="{{ url_for('reference_edit', rid=r.id) }}" class="ref-form">
+              <input type="text" name="title" value="{{ r.title }}" required placeholder="标题">
+              <textarea name="body" rows="3" placeholder="文字说明（可选）">{{ r.body or '' }}</textarea>
+              <div class="ref-links-edit">
+                {% for lk in r.link_list %}
+                <div class="ref-link-row">
+                  <input type="text" name="link_name" value="{{ lk.name }}" placeholder="名称">
+                  <input type="url" name="link_url" value="{{ lk.url }}" placeholder="链接 URL">
+                </div>
+                {% endfor %}
+                <div class="ref-link-row">
+                  <input type="text" name="link_name" placeholder="名称">
+                  <input type="url" name="link_url" placeholder="链接 URL">
+                </div>
+              </div>
+              <button type="button" class="btn-sm add-link-row">＋ 加一条链接</button>
+              <button class="btn-sm btn-primary">保存</button>
+            </form>
+          </details>
+          <form method="post" action="{{ url_for('reference_delete', rid=r.id) }}" class="inline-delete">
+            <button class="btn-sm danger" onclick="return confirm('删除这条参考资料？')">删除</button>
+          </form>
+        </div>
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+</div>
+
+<dialog id="new-note-dialog" class="dialog">
   <form method="post" action="{{ url_for('note_new') }}">
     <input type="hidden" name="redirect_to" value="{{ url_for('notes_list') }}">
-    <h3>新建全局笔记</h3>
-    <p class="muted small">不绑定任何项目，记录跨项目的想法/学习。</p>
+    <h3>新建学习笔记</h3>
+    <p class="muted small">记录 vibe coding 期间学到的新知识、想法。</p>
     <label>标题 <input type="text" name="title" required></label>
     <label>正文 <textarea name="body" rows="8"></textarea></label>
     <label>标签 <input type="text" name="tags" placeholder="逗号分隔"></label>
@@ -66,6 +115,34 @@
       <button type="submit" class="btn btn-primary">添加</button>
     </div>
   </form>
+</dialog>
+
+<dialog id="new-ref-dialog" class="dialog">
+  <form method="post" action="{{ url_for('reference_new') }}" class="ref-form">
+    <h3>新建参考资料</h3>
+    <label>标题 <input type="text" name="title" required></label>
+    <label>文字说明（可选）<textarea name="body" rows="3"></textarea></label>
+    <div class="ref-links-edit">
+      <p class="muted small">链接（可选，每条带一个名称）</p>
+      <div class="ref-link-row">
+        <input type="text" name="link_name" placeholder="名称">
+        <input type="url" name="link_url" placeholder="链接 URL">
+      </div>
+    </div>
+    <button type="button" class="btn-sm add-link-row">＋ 加一条链接</button>
+    <div class="dialog-actions">
+      <button type="button" onclick="this.closest('dialog').close()" class="btn">取消</button>
+      <button type="submit" class="btn btn-primary">添加</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="note-modal" class="dialog note-modal">
+  <h3 id="note-modal-title"></h3>
+  <div class="note-modal-body" id="note-modal-body"></div>
+  <div class="dialog-actions">
+    <button type="button" onclick="this.closest('dialog').close()" class="btn">关闭</button>
+  </div>
 </dialog>
 
 {% endblock %}

@@ -60,8 +60,7 @@
     <label>标题 <input type="text" name="title" required></label>
     <label>类型 <select name="type"><option value="video">视频</option><option value="article">文章</option></select></label>
     <label>状态 <select name="status"><option value="planned">planned</option><option value="in-progress">in-progress</option><option value="done">done</option></select></label>
-    <label>链接 <input type="url" name="link"></label>
-    <label>备注 <textarea name="notes" rows="3"></textarea></label>
+    <label>策划 / 备注 <textarea name="notes" rows="3" placeholder="这条内容打算怎么做…"></textarea></label>
     <div class="dialog-actions">
       <button type="button" onclick="this.closest('dialog').close()" class="btn">取消</button>
       <button type="submit" class="btn btn-primary">添加</button>
