@@ -30,11 +30,11 @@
     <div class="media-card-head">
       <span class="media-type">{{ '🎬' if m.type == 'video' else '📝' }}</span>
       {% if m.link %}<a href="{{ m.link }}" target="_blank"><strong>{{ m.title }}</strong></a>{% else %}<strong>{{ m.title }}</strong>{% endif %}
+      <span class="media-card-tags">
+        {% if m.project_name %}<span class="proj-tag">{{ m.project_name }}</span>{% else %}<span class="proj-tag global">全局</span>{% endif %}
+        <span class="proj-tag status-tag status-{{ m.status }}">{{ m.status }}</span>
+      </span>
     </div>
-    <p class="muted small">
-      {% if m.project_name %}<span class="proj-tag">{{ m.project_name }}</span>{% else %}<span class="proj-tag global">全局</span>{% endif %}
-      · 状态 <strong>{{ m.status }}</strong>
-    </p>
     {% if m.notes %}<p class="note-body">{{ m.notes }}</p>{% endif %}
     <div class="media-card-actions">
       <form method="post" action="{{ url_for('media_update', mid=m.id) }}" class="inline">
