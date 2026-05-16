@@ -1005,6 +1005,7 @@ def note_delete(nid):
 def media_list():
     status = request.args.get("status", "all")
     scope = request.args.get("scope", "all")
+    sort = request.args.get("sort", "default")  # default | publish_desc | publish_asc
     with db.cursor() as cur:
         sql = (
             "SELECT m.*, p.name AS project_name FROM media_items m "
@@ -1018,10 +1019,16 @@ def media_list():
             sql += " AND m.project_id IS NULL"
         elif scope == "project":
             sql += " AND m.project_id IS NOT NULL"
-        sql += " ORDER BY m.id DESC"
+        # NULL publish_date 永远排在最后；其他按方向排
+        if sort == "publish_desc":
+            sql += " ORDER BY m.publish_date IS NULL, m.publish_date DESC, m.id DESC"
+        elif sort == "publish_asc":
+            sql += " ORDER BY m.publish_date IS NULL, m.publish_date ASC, m.id DESC"
+        else:
+            sql += " ORDER BY m.id DESC"
         cur.execute(sql, params)
         items = [dict(r) for r in cur.fetchall()]
-    return render_template("media.html", items=items, status=status, scope=scope)
+    return render_template("media.html", items=items, status=status, scope=scope, sort=sort)
 
 
 @app.route("/media/new", methods=["POST"])
@@ -1034,10 +1041,12 @@ def media_new():
     status = request.form.get("status", "planned")
     link = request.form.get("link", "").strip() or None
     notes = request.form.get("notes", "")
+    publish_date = request.form.get("publish_date", "").strip() or None
     with db.cursor() as cur:
         cur.execute(
-            "INSERT INTO media_items (project_id, type, title, status, link, notes) VALUES (?, ?, ?, ?, ?, ?)",
-            (project_id, mtype, title, status, link, notes),
+            "INSERT INTO media_items (project_id, type, title, status, link, notes, publish_date) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (project_id, mtype, title, status, link, notes, publish_date),
         )
     redirect_to = request.form.get("redirect_to") or url_for("media_list")
     return redirect(redirect_to)
@@ -1066,12 +1075,13 @@ def media_star_toggle(mid):
 def media_edit(mid):
     with db.cursor() as cur:
         cur.execute(
-            "UPDATE media_items SET title=?, type=?, status=?, notes=? WHERE id=?",
+            "UPDATE media_items SET title=?, type=?, status=?, notes=?, publish_date=? WHERE id=?",
             (
                 request.form.get("title", "").strip() or "(无标题)",
                 request.form.get("type", "video"),
                 request.form.get("status", "planned"),
                 request.form.get("notes", ""),
+                request.form.get("publish_date", "").strip() or None,
                 mid,
             ),
         )

@@ -12,11 +12,15 @@
 <div class="filter-bar">
   <span class="filter-label">状态：</span>
   {% for s, label in [('all','全部'),('planned','计划中'),('in-progress','进行中'),('done','已完成')] %}
-    <a href="{{ url_for('media_list', status=s, scope=scope) }}" class="chip {% if status==s %}active{% endif %}">{{ label }}</a>
+    <a href="{{ url_for('media_list', status=s, scope=scope, sort=sort) }}" class="chip {% if status==s %}active{% endif %}">{{ label }}</a>
   {% endfor %}
   <span class="filter-label" style="margin-left:1.5rem">归属：</span>
   {% for s, label in [('all','全部'),('project','项目关联'),('global','全局')] %}
-    <a href="{{ url_for('media_list', status=status, scope=s) }}" class="chip {% if scope==s %}active{% endif %}">{{ label }}</a>
+    <a href="{{ url_for('media_list', status=status, scope=s, sort=sort) }}" class="chip {% if scope==s %}active{% endif %}">{{ label }}</a>
+  {% endfor %}
+  <span class="filter-label" style="margin-left:1.5rem">排序：</span>
+  {% for s, label in [('default','默认'),('publish_desc','按发布时间↓ 新→旧'),('publish_asc','按发布时间↑ 旧→新')] %}
+    <a href="{{ url_for('media_list', status=status, scope=scope, sort=s) }}" class="chip {% if sort==s %}active{% endif %}">{{ label }}</a>
   {% endfor %}
 </div>
 
@@ -33,6 +37,11 @@
       <span class="media-card-tags">
         {% if m.project_name %}<span class="proj-tag">{{ m.project_name }}</span>{% else %}<span class="proj-tag global">全局</span>{% endif %}
         <span class="proj-tag status-tag status-{{ m.status }}">{{ m.status }}</span>
+        {% if m.publish_date %}
+          <span class="proj-tag date-tag" title="{{ '已发布时间' if m.status == 'done' else '预期发布时间' }}">
+            {% if m.status != 'done' %}🗓 {% endif %}{{ m.publish_date }}
+          </span>
+        {% endif %}
       </span>
     </div>
     {% if m.notes %}<p class="note-body">{{ m.notes }}</p>{% endif %}
@@ -63,6 +72,8 @@
               {% endfor %}
             </select>
           </label>
+          <label>发布时间 <input type="date" name="publish_date" value="{{ m.publish_date or '' }}"></label>
+          <p class="muted small" style="margin:-0.3rem 0 0.3rem">已发布填实际发布日；计划/进行中填预期发布日</p>
           <label>策划 / 备注 <textarea name="notes" rows="3">{{ m.notes or '' }}</textarea></label>
           <button class="btn-sm btn-primary">保存</button>
         </form>
@@ -84,6 +95,8 @@
     <label>标题 <input type="text" name="title" required></label>
     <label>类型 <select name="type"><option value="video">视频</option><option value="article">文章</option></select></label>
     <label>状态 <select name="status"><option value="planned">planned</option><option value="in-progress">in-progress</option><option value="done">done</option></select></label>
+    <label>发布时间 <input type="date" name="publish_date"></label>
+    <p class="muted small" style="margin:-0.5rem 0 0.5rem">已发布填实际日期；计划中填预期日期</p>
     <label>策划 / 备注 <textarea name="notes" rows="3" placeholder="这条内容打算怎么做…"></textarea></label>
     <div class="dialog-actions">
       <button type="button" onclick="this.closest('dialog').close()" class="btn">取消</button>

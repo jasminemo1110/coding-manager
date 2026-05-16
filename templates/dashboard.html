@@ -212,7 +212,8 @@
                 data-title="{{ m.title }}"
                 data-type="{{ m.type }}"
                 data-status="{{ m.status }}"
-                data-notes="{{ m.notes or '' }}">
+                data-notes="{{ m.notes or '' }}"
+                data-publish-date="{{ m.publish_date or '' }}">
           <span class="media-star {% if m.starred %}on{% endif %}" data-url="{{ url_for('media_star_toggle', mid=m.id) }}" title="标记重要">★</span>
           <span class="media-type">{{ '🎬' if m.type == 'video' else '📝' }}</span>
           <span class="media-chip-title">{{ m.title }}</span>
@@ -260,6 +261,8 @@
     <label>标题 <input type="text" name="title" required></label>
     <label>类型 <select name="type"><option value="video">视频</option><option value="article">文章</option></select></label>
     <label>状态 <select name="status"><option value="planned">planned</option><option value="in-progress">in-progress</option><option value="done">done</option></select></label>
+    <label>发布时间 <input type="date" name="publish_date"></label>
+    <p class="muted small" style="margin:-0.5rem 0 0.5rem">已发布填实际日期；计划中填预期日期</p>
     <label>策划 / 备注 <textarea name="notes" rows="3" placeholder="这条内容打算怎么做…"></textarea></label>
     <div class="dialog-actions">
       <button type="button" onclick="this.closest('dialog').close()" class="btn">取消</button>
@@ -275,6 +278,8 @@
     <label>标题 <input type="text" name="title" id="me-title" required></label>
     <label>类型 <select name="type" id="me-type"><option value="video">视频</option><option value="article">文章</option></select></label>
     <label>状态 <select name="status" id="me-status"><option value="planned">planned</option><option value="in-progress">in-progress</option><option value="done">done</option></select></label>
+    <label>发布时间 <input type="date" name="publish_date" id="me-publish-date"></label>
+    <p class="muted small" style="margin:-0.5rem 0 0.5rem">已发布填实际日期；计划中填预期日期</p>
     <label>策划 / 备注 <textarea name="notes" id="me-notes" rows="4"></textarea></label>
     <div class="dialog-actions">
       <button type="button" onclick="this.closest('dialog').close()" class="btn">取消</button>

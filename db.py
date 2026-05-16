@@ -194,6 +194,10 @@ def init_db():
             cur.execute(
                 "ALTER TABLE media_items ADD COLUMN starred INTEGER NOT NULL DEFAULT 0"
             )
+        if "publish_date" not in mi_cols:
+            cur.execute(
+                "ALTER TABLE media_items ADD COLUMN publish_date TEXT"
+            )
         # project_todos: make project_id nullable + add `important` (recreate table)
         cur.execute("PRAGMA table_info(project_todos)")
         pt_cols = {row["name"] for row in cur.fetchall()}

@@ -355,6 +355,7 @@ document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('me-type').value = chip.dataset.type;
       document.getElementById('me-status').value = chip.dataset.status;
       document.getElementById('me-notes').value = chip.dataset.notes;
+      document.getElementById('me-publish-date').value = chip.dataset.publishDate || '';
       mediaEditDialog.showModal();
     });
   });
