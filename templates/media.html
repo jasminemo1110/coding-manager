@@ -46,10 +46,12 @@
         </form>
         <form method="post" action="{{ url_for('media_update', mid=m.id) }}" class="inline-chip-form date-chip-form">
           <input type="hidden" name="redirect_to" value="{{ url_for('media_list', status=status, scope=scope, sort=sort) }}">
-          <label class="chip-date-label proj-tag date-tag" title="{{ '已发布时间（点击修改）' if m.status == 'done' else '预期发布时间（点击修改）' }}">
+          <span class="chip-date-label proj-tag date-tag"
+                title="{{ '已发布时间（点击修改）' if m.status == 'done' else '预期发布时间（点击修改）' }}"
+                onclick="const i=this.querySelector('input');if(i.showPicker){i.showPicker()}else{i.focus();i.click()}">
             {% if m.publish_date %}{% if m.status != 'done' %}🗓 {% endif %}{{ m.publish_date }}{% else %}🗓 设置时间{% endif %}
             <input type="date" name="publish_date" value="{{ m.publish_date or '' }}" onchange="this.form.submit()">
-          </label>
+          </span>
         </form>
       </span>
     </div>
