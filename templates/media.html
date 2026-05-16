@@ -36,28 +36,31 @@
       {% if m.link %}<a href="{{ m.link }}" target="_blank"><strong>{{ m.title }}</strong></a>{% else %}<strong>{{ m.title }}</strong>{% endif %}
       <span class="media-card-tags">
         {% if m.project_name %}<span class="proj-tag">{{ m.project_name }}</span>{% else %}<span class="proj-tag global">全局</span>{% endif %}
-        <span class="proj-tag status-tag status-{{ m.status }}">{{ m.status }}</span>
-        {% if m.publish_date %}
-          <span class="proj-tag date-tag" title="{{ '已发布时间' if m.status == 'done' else '预期发布时间' }}">
-            {% if m.status != 'done' %}🗓 {% endif %}{{ m.publish_date }}
-          </span>
-        {% endif %}
+        <form method="post" action="{{ url_for('media_update', mid=m.id) }}" class="inline-chip-form">
+          <input type="hidden" name="redirect_to" value="{{ url_for('media_list', status=status, scope=scope, sort=sort) }}">
+          <select name="status" class="chip-select status-tag status-{{ m.status }}" onchange="this.form.submit()" title="切换状态">
+            {% for s in ['planned','in-progress','done'] %}
+            <option value="{{ s }}" {% if m.status == s %}selected{% endif %}>{{ s }}</option>
+            {% endfor %}
+          </select>
+        </form>
+        <form method="post" action="{{ url_for('media_update', mid=m.id) }}" class="inline-chip-form date-chip-form">
+          <input type="hidden" name="redirect_to" value="{{ url_for('media_list', status=status, scope=scope, sort=sort) }}">
+          <label class="chip-date-label proj-tag date-tag" title="{{ '已发布时间（点击修改）' if m.status == 'done' else '预期发布时间（点击修改）' }}">
+            {% if m.publish_date %}{% if m.status != 'done' %}🗓 {% endif %}{{ m.publish_date }}{% else %}🗓 设置时间{% endif %}
+            <input type="date" name="publish_date" value="{{ m.publish_date or '' }}" onchange="this.form.submit()">
+          </label>
+        </form>
       </span>
     </div>
     {% if m.notes %}<p class="note-body">{{ m.notes }}</p>{% endif %}
     <div class="media-card-actions">
-      <form method="post" action="{{ url_for('media_update', mid=m.id) }}" class="inline">
-        <input type="hidden" name="redirect_to" value="{{ url_for('media_list', status=status, scope=scope) }}">
-        <select name="status" onchange="this.form.submit()">
-          {% for s in ['planned','in-progress','done'] %}
-          <option value="{{ s }}" {% if m.status == s %}selected{% endif %}>{{ s }}</option>
-          {% endfor %}
-        </select>
-      </form>
       <details class="media-edit">
         <summary class="btn-sm">编辑</summary>
         <form method="post" action="{{ url_for('media_edit', mid=m.id) }}">
-          <input type="hidden" name="redirect_to" value="{{ url_for('media_list', status=status, scope=scope) }}">
+          <input type="hidden" name="redirect_to" value="{{ url_for('media_list', status=status, scope=scope, sort=sort) }}">
+          <input type="hidden" name="status" value="{{ m.status }}">
+          <input type="hidden" name="publish_date" value="{{ m.publish_date or '' }}">
           <label>标题 <input type="text" name="title" value="{{ m.title }}" required></label>
           <label>类型
             <select name="type">
@@ -65,16 +68,8 @@
               <option value="article" {% if m.type=='article' %}selected{% endif %}>文章</option>
             </select>
           </label>
-          <label>状态
-            <select name="status">
-              {% for s in ['planned','in-progress','done'] %}
-              <option value="{{ s }}" {% if m.status == s %}selected{% endif %}>{{ s }}</option>
-              {% endfor %}
-            </select>
-          </label>
-          <label>发布时间 <input type="date" name="publish_date" value="{{ m.publish_date or '' }}"></label>
-          <p class="muted small" style="margin:-0.3rem 0 0.3rem">已发布填实际发布日；计划/进行中填预期发布日</p>
           <label>策划 / 备注 <textarea name="notes" rows="3">{{ m.notes or '' }}</textarea></label>
+          <p class="muted small" style="margin:-0.2rem 0 0.4rem">状态和发布时间请在右上角直接修改</p>
           <button class="btn-sm btn-primary">保存</button>
         </form>
       </details>

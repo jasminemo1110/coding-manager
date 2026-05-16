@@ -1054,10 +1054,24 @@ def media_new():
 
 @app.route("/media/<int:mid>/update", methods=["POST"])
 def media_update(mid):
-    status = request.form.get("status")
-    if status:
+    """Quick partial update — only the fields actually sent are written.
+
+    Used by the inline status / publish-date controls on the media card header.
+    """
+    fields = []
+    values = []
+    if "status" in request.form:
+        fields.append("status=?")
+        values.append(request.form.get("status"))
+    if "publish_date" in request.form:
+        fields.append("publish_date=?")
+        values.append(request.form.get("publish_date", "").strip() or None)
+    if fields:
+        values.append(mid)
         with db.cursor() as cur:
-            cur.execute("UPDATE media_items SET status=? WHERE id=?", (status, mid))
+            cur.execute(
+                f"UPDATE media_items SET {', '.join(fields)} WHERE id=?", values
+            )
     redirect_to = request.form.get("redirect_to") or url_for("media_list")
     return redirect(redirect_to)
 

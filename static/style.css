@@ -974,6 +974,39 @@ textarea.autosize {
 .status-tag.status-planned { background: #fef3c7; color: #92400e; }
 .status-tag.status-in-progress { background: #dbeafe; color: #1e40af; }
 .status-tag.status-done { background: #d1fae5; color: #065f46; }
+
+/* Inline interactive chips (status select + date picker on media card header) */
+.inline-chip-form { display: inline; margin: 0; }
+.chip-select {
+  appearance: none;
+  -webkit-appearance: none;
+  border: none;
+  font: inherit;
+  font-size: 0.75rem;
+  padding: 0.05rem 0.5rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+}
+.chip-select:hover { filter: brightness(0.95); }
+.chip-date-label {
+  cursor: pointer;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+.chip-date-label:hover { filter: brightness(0.95); }
+.chip-date-label input[type=date] {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  border: none;
+  padding: 0;
+}
+.date-tag { background: var(--line); color: var(--ink-soft); }
 .media-type { font-size: 1.1rem; }
 .media-item {
   display: flex;
