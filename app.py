@@ -1005,7 +1005,7 @@ def note_delete(nid):
 def media_list():
     status = request.args.get("status", "all")
     scope = request.args.get("scope", "all")
-    sort = request.args.get("sort", "default")  # default | publish_desc | publish_asc
+    sort = request.args.get("sort", "publish_desc")  # publish_desc | publish_asc | default
     with db.cursor() as cur:
         sql = (
             "SELECT m.*, p.name AS project_name FROM media_items m "

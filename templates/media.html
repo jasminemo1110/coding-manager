@@ -11,7 +11,7 @@
 
 <div class="filter-bar">
   <span class="filter-label">状态：</span>
-  {% for s, label in [('all','全部'),('planned','计划中'),('in-progress','进行中'),('done','已完成')] %}
+  {% for s, label in [('all','全部'),('planned','规划中'),('in-progress','进行中'),('ready','待发布'),('done','已发布')] %}
     <a href="{{ url_for('media_list', status=s, scope=scope, sort=sort) }}" class="chip {% if status==s %}active{% endif %}">{{ label }}</a>
   {% endfor %}
   <span class="filter-label" style="margin-left:1.5rem">归属：</span>
@@ -39,8 +39,8 @@
         <form method="post" action="{{ url_for('media_update', mid=m.id) }}" class="inline-chip-form">
           <input type="hidden" name="redirect_to" value="{{ url_for('media_list', status=status, scope=scope, sort=sort) }}">
           <select name="status" class="chip-select status-tag status-{{ m.status }}" onchange="this.form.submit()" title="切换状态">
-            {% for s in ['planned','in-progress','done'] %}
-            <option value="{{ s }}" {% if m.status == s %}selected{% endif %}>{{ s }}</option>
+            {% for s, label in [('planned','规划中'),('in-progress','进行中'),('ready','待发布'),('done','已发布')] %}
+            <option value="{{ s }}" {% if m.status == s %}selected{% endif %}>{{ label }}</option>
             {% endfor %}
           </select>
         </form>
@@ -91,7 +91,14 @@
     <p class="muted small">不绑定具体项目，记录关于整个 vibe coding 经历的视频/文章想法。</p>
     <label>标题 <input type="text" name="title" required></label>
     <label>类型 <select name="type"><option value="video">视频</option><option value="article">文章</option></select></label>
-    <label>状态 <select name="status"><option value="planned">planned</option><option value="in-progress">in-progress</option><option value="done">done</option></select></label>
+    <label>状态
+      <select name="status">
+        <option value="planned">规划中</option>
+        <option value="in-progress">进行中</option>
+        <option value="ready">待发布</option>
+        <option value="done">已发布</option>
+      </select>
+    </label>
     <label>发布时间 <input type="date" name="publish_date"></label>
     <p class="muted small" style="margin:-0.5rem 0 0.5rem">已发布填实际日期；计划中填预期日期</p>
     <label>策划 / 备注 <textarea name="notes" rows="3" placeholder="这条内容打算怎么做…"></textarea></label>

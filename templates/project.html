@@ -214,8 +214,8 @@
       <form method="post" action="{{ url_for('media_update', mid=m.id) }}" class="inline">
         <input type="hidden" name="redirect_to" value="{{ url_for('project_detail', pid=p.id) }}">
         <select name="status" onchange="this.form.submit()">
-          {% for s in ['planned', 'in-progress', 'done'] %}
-          <option value="{{ s }}" {% if m.status == s %}selected{% endif %}>{{ s }}</option>
+          {% for s, label in [('planned','规划中'),('in-progress','进行中'),('ready','待发布'),('done','已发布')] %}
+          <option value="{{ s }}" {% if m.status == s %}selected{% endif %}>{{ label }}</option>
           {% endfor %}
         </select>
       </form>
@@ -285,7 +285,14 @@
     <h3>新自媒体内容</h3>
     <label>标题 <input type="text" name="title" required></label>
     <label>类型 <select name="type"><option value="video">视频</option><option value="article">文章</option></select></label>
-    <label>状态 <select name="status"><option value="planned">planned</option><option value="in-progress">in-progress</option><option value="done">done</option></select></label>
+    <label>状态
+      <select name="status">
+        <option value="planned">规划中</option>
+        <option value="in-progress">进行中</option>
+        <option value="ready">待发布</option>
+        <option value="done">已发布</option>
+      </select>
+    </label>
     <label>策划 / 备注 <textarea name="notes" rows="3" placeholder="这条内容打算怎么做…"></textarea></label>
     <div class="dialog-actions">
       <button type="button" onclick="this.closest('dialog').close()" class="btn">取消</button>

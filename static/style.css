@@ -973,6 +973,7 @@ textarea.autosize {
 }
 .status-tag.status-planned { background: #fef3c7; color: #92400e; }
 .status-tag.status-in-progress { background: #dbeafe; color: #1e40af; }
+.status-tag.status-ready { background: #ede9fe; color: #5b21b6; }
 .status-tag.status-done { background: #d1fae5; color: #065f46; }
 
 /* Inline interactive chips (status select + date picker on media card header) */
