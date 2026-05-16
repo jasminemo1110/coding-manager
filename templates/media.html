@@ -36,18 +36,42 @@
       · 状态 <strong>{{ m.status }}</strong>
     </p>
     {% if m.notes %}<p class="note-body">{{ m.notes }}</p>{% endif %}
-    <form method="post" action="{{ url_for('media_update', mid=m.id) }}" class="inline">
-      <input type="hidden" name="redirect_to" value="{{ url_for('media_list', status=status, scope=scope) }}">
-      <select name="status" onchange="this.form.submit()">
-        {% for s in ['planned','in-progress','done'] %}
-        <option value="{{ s }}" {% if m.status == s %}selected{% endif %}>{{ s }}</option>
-        {% endfor %}
-      </select>
-    </form>
-    <form method="post" action="{{ url_for('media_delete', mid=m.id) }}" class="inline-delete">
-      <input type="hidden" name="redirect_to" value="{{ url_for('media_list', status=status, scope=scope) }}">
-      <button class="btn-sm danger" onclick="return confirm('删除？')">×</button>
-    </form>
+    <div class="media-card-actions">
+      <form method="post" action="{{ url_for('media_update', mid=m.id) }}" class="inline">
+        <input type="hidden" name="redirect_to" value="{{ url_for('media_list', status=status, scope=scope) }}">
+        <select name="status" onchange="this.form.submit()">
+          {% for s in ['planned','in-progress','done'] %}
+          <option value="{{ s }}" {% if m.status == s %}selected{% endif %}>{{ s }}</option>
+          {% endfor %}
+        </select>
+      </form>
+      <details class="media-edit">
+        <summary class="btn-sm">编辑</summary>
+        <form method="post" action="{{ url_for('media_edit', mid=m.id) }}">
+          <input type="hidden" name="redirect_to" value="{{ url_for('media_list', status=status, scope=scope) }}">
+          <label>标题 <input type="text" name="title" value="{{ m.title }}" required></label>
+          <label>类型
+            <select name="type">
+              <option value="video" {% if m.type=='video' %}selected{% endif %}>视频</option>
+              <option value="article" {% if m.type=='article' %}selected{% endif %}>文章</option>
+            </select>
+          </label>
+          <label>状态
+            <select name="status">
+              {% for s in ['planned','in-progress','done'] %}
+              <option value="{{ s }}" {% if m.status == s %}selected{% endif %}>{{ s }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label>策划 / 备注 <textarea name="notes" rows="3">{{ m.notes or '' }}</textarea></label>
+          <button class="btn-sm btn-primary">保存</button>
+        </form>
+      </details>
+      <form method="post" action="{{ url_for('media_delete', mid=m.id) }}" class="inline-delete">
+        <input type="hidden" name="redirect_to" value="{{ url_for('media_list', status=status, scope=scope) }}">
+        <button class="btn-sm danger" onclick="return confirm('删除？')">×</button>
+      </form>
+    </div>
   </li>
   {% endfor %}
 </ul>
