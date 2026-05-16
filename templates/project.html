@@ -86,7 +86,15 @@
     <form method="post" action="{{ url_for('update_log_notes', log_id=log.id) }}" class="notes-form">
       <input type="hidden" name="project_id" value="{{ p.id }}">
       <textarea name="manual_notes" class="autosize" placeholder="今天的手动补充…">{{ log.manual_notes or '' }}</textarea>
-      <button class="btn-sm btn-primary">保存补充</button>
+      <div class="notes-form-actions">
+        <button class="btn-sm btn-primary">保存补充</button>
+        {% if log.manual_notes %}
+        <button type="button" class="btn-sm danger notes-clear-btn"
+                onclick="if(confirm('删除这条手动补充？')){this.closest('form').querySelector('textarea').value='';this.closest('form').submit();}">
+          删除补充
+        </button>
+        {% endif %}
+      </div>
     </form>
     <div class="log-checklist">
       <span class="log-checklist-label">这一天的清单：</span>
@@ -114,12 +122,30 @@
     {% if log.linked_notes %}
     <div class="log-notes">
       {% for n in log.linked_notes %}
-      <div class="log-note note-clickable" data-note-title="{{ n.title }}" data-note-body="{{ n.body or '' }}">
-        <div class="log-note-head">
-          <strong>📝 {{ n.title }}</strong>
-          {% if n.tags %}<span class="muted small">[{{ n.tags }}]</span>{% endif %}
+      <div class="log-note">
+        <div class="note-clickable" data-note-title="{{ n.title }}" data-note-body="{{ n.body or '' }}">
+          <div class="log-note-head">
+            <strong>📝 {{ n.title }}</strong>
+            {% if n.tags %}<span class="muted small">[{{ n.tags }}]</span>{% endif %}
+          </div>
+          {% if n.body %}<div class="note-body note-body-clip">{{ n.body }}</div>{% endif %}
         </div>
-        {% if n.body %}<div class="note-body note-body-clip">{{ n.body }}</div>{% endif %}
+        <div class="note-actions">
+          <details>
+            <summary class="btn-sm">编辑</summary>
+            <form method="post" action="{{ url_for('note_edit', nid=n.id) }}">
+              <input type="hidden" name="redirect_to" value="{{ url_for('project_detail', pid=p.id) }}">
+              <input type="text" name="title" value="{{ n.title }}" required>
+              <textarea name="body" rows="4">{{ n.body or '' }}</textarea>
+              <input type="text" name="tags" value="{{ n.tags or '' }}" placeholder="标签（逗号分隔）">
+              <button class="btn-sm btn-primary">保存</button>
+            </form>
+          </details>
+          <form method="post" action="{{ url_for('note_delete', nid=n.id) }}" class="inline-delete">
+            <input type="hidden" name="redirect_to" value="{{ url_for('project_detail', pid=p.id) }}">
+            <button class="btn-sm danger" onclick="return confirm('删除这条关联笔记？')">删除</button>
+          </form>
+        </div>
       </div>
       {% endfor %}
     </div>
