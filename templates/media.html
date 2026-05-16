@@ -18,8 +18,11 @@
   {% for s, label in [('all','全部'),('project','项目关联'),('global','全局')] %}
     <a href="{{ url_for('media_list', status=status, scope=s, sort=sort) }}" class="chip {% if scope==s %}active{% endif %}">{{ label }}</a>
   {% endfor %}
-  <span class="filter-label" style="margin-left:1.5rem">排序：</span>
-  {% for s, label in [('default','默认'),('publish_desc','按发布时间↓ 新→旧'),('publish_asc','按发布时间↑ 旧→新')] %}
+</div>
+
+<div class="filter-bar">
+  <span class="filter-label">排序：</span>
+  {% for s, label in [('publish_desc','按发布时间↓ 新→旧'),('publish_asc','按发布时间↑ 旧→新'),('default','默认（创建时间）')] %}
     <a href="{{ url_for('media_list', status=status, scope=scope, sort=s) }}" class="chip {% if sort==s %}active{% endif %}">{{ label }}</a>
   {% endfor %}
 </div>
