@@ -1008,6 +1008,17 @@ textarea.autosize {
   padding: 0;
 }
 .date-tag { background: var(--line); color: var(--ink-soft); }
+
+/* Media card notes: clamp to 4 lines by default, click to expand in modal */
+.media-note-clip {
+  -webkit-line-clamp: 4;
+  line-clamp: 4;
+}
+.media-char-count {
+  margin: 0.3rem 0 0;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
 .media-type { font-size: 1.1rem; }
 .media-item {
   display: flex;

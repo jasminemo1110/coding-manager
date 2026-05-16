@@ -58,7 +58,11 @@
         </form>
       </span>
     </div>
-    {% if m.notes %}<p class="note-body">{{ m.notes }}</p>{% endif %}
+    {% if m.notes %}
+      <div class="note-body media-note-clip note-body-clip note-clickable"
+           data-note-title="{{ m.title }}" data-note-body="{{ m.notes }}">{{ m.notes }}</div>
+      <p class="muted small media-char-count">字数：{{ m.notes|length }}</p>
+    {% endif %}
     <div class="media-card-actions">
       <details class="media-edit">
         <summary class="btn-sm">编辑</summary>
@@ -86,6 +90,14 @@
   </li>
   {% endfor %}
 </ul>
+
+<dialog id="note-modal" class="dialog note-modal">
+  <h3 id="note-modal-title"></h3>
+  <div class="note-modal-body" id="note-modal-body"></div>
+  <div class="dialog-actions">
+    <button type="button" onclick="this.closest('dialog').close()" class="btn">关闭</button>
+  </div>
+</dialog>
 
 <dialog id="new-global-media" class="dialog">
   <form method="post" action="{{ url_for('media_new') }}">
