@@ -13,9 +13,12 @@
 <div class="site-banner">
   <div class="banner-inner">
     <div class="banner-img-wrap">
-      <!-- 替换为真实 banner 图时，取消下行注释，删掉 .banner-placeholder div；推荐尺寸 1200×240 px（5:1） -->
-      <!-- <img src="{{ url_for('static', filename='banner.png') }}" alt="Coding Manager" class="banner-img"> -->
-      <div class="banner-placeholder"></div>
+      <img src="{{ url_for('static', filename='banner.png') }}" alt="Coding Manager" class="banner-img">
+      <!-- 图片未就绪时的备用占位（删掉上面 img 标签后取消此注释）-->
+      <!-- <div class="banner-placeholder"></div> -->
+
+      <!-- 底部渐变遮罩，让图片自然融入页面背景 -->
+      <div class="banner-fade"></div>
 
       <!-- attribution 卡片：悬浮在 banner 右侧中部 -->
       <a class="banner-credit" href="https://github.com/jasminemo1110" target="_blank" rel="noopener">
