@@ -170,11 +170,20 @@ code { font-family: 'JetBrains Mono', SFMono-Regular, Menlo, monospace; font-siz
   transition: background 0.15s;
 }
 .nav a:hover { background: rgba(255, 255, 255, 0.96); text-decoration: none; color: var(--ink); }
-.nav a.nav-guide {
+.nav a.nav-guide,
+.nav-guide {
   background: rgba(201, 100, 66, 0.82);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  padding: 0.28rem 0.85rem;
+  border-radius: 20px;
   color: #fff;
+  font-size: 0.88rem;
+  font-weight: 500;
+  transition: background 0.15s;
 }
-.nav a.nav-guide:hover { background: rgba(201, 100, 66, 0.97); color: #fff; }
+.nav a.nav-guide:hover,
+.nav-guide:hover { background: rgba(201, 100, 66, 0.97); color: #fff; text-decoration: none; }
 
 .container {
   max-width: 1180px;
