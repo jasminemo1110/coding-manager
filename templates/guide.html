@@ -120,14 +120,25 @@
   <!-- author -->
   <section class="guide-section guide-author-section">
     <div class="guide-author">
-      <div class="author-avatar">茉</div>
+      <!-- 替换为真实头像：将下行注释取消，删掉 .author-avatar-placeholder div -->
+      <!-- <img src="{{ url_for('static', filename='avatar.jpg') }}" alt="茉白 Jasmine" class="author-avatar-img"> -->
+      <div class="author-avatar-placeholder">茉</div>
       <div class="author-info">
         <div class="author-name">茉白 Jasmine</div>
-        <div class="author-bio">
-          文科背景的 vibe coding 创作者。两个月前开始用 Claude Code 做自己的工具，项目多了之后找不到顺手的管理工具，于是就自己做了这个。在小红书和即刻上记录 vibe coding 的日常，欢迎来找我聊。
-        </div>
+        <div class="author-tagline">日语老师出身，纯文科背景代码0基础 vibe coding 创作者。</div>
+        <div class="author-intro">欢迎和我交流 👋</div>
         <div class="author-links">
-          <a href="https://github.com/jasminemo1110" target="_blank" rel="noopener">GitHub @jasminemo1110 ↗</a>
+          <a href="https://github.com/jasminemo1110" target="_blank" rel="noopener">💻 GitHub @jasminemo1110 ↗</a>
+          <a href="mailto:jasminemo1110@gmail.com">📮 jasminemo1110@gmail.com</a>
+        </div>
+        <div class="author-badges">
+          🦄 连续创业者 | 10年+ 日语老师 | AI 应用研发 | 《日语新起点》教材副主编 | N1 满分 | 免试保送北外本硕<br>
+          🇨🇳 Beijing · Entrepreneur · Japanese Language Expert (N1 180) · BFSU Alumna
+        </div>
+        <div class="author-socials">
+          <span>WeChat：jasminemobai</span>
+          <span>X：@jasminemobai</span>
+          <span>全平台：茉白Jasmine</span>
         </div>
       </div>
     </div>
@@ -167,16 +178,24 @@
 
 .guide-author-section { border-top: 1px solid var(--line); padding-top: 2rem; }
 .guide-author { display: flex; gap: 1.4rem; align-items: flex-start; }
-.author-avatar {
-  width: 3rem; height: 3rem; border-radius: 50%;
-  background: var(--accent-soft); border: 2px solid var(--accent);
-  display: flex; align-items: center; justify-content: center;
-  font-size: 1.2rem; font-weight: 700; color: var(--accent-ink);
+.author-avatar-placeholder, .author-avatar-img {
+  width: 3.6rem; height: 3.6rem; border-radius: 50%;
   flex-shrink: 0;
 }
-.author-name { font-weight: 700; font-size: 1rem; margin-bottom: 0.4rem; }
-.author-bio { font-size: 0.9rem; color: var(--ink-soft); line-height: 1.7; margin-bottom: 0.6rem; }
-.author-links a { font-size: 0.88rem; color: var(--accent); font-weight: 500; }
+.author-avatar-placeholder {
+  background: var(--line-strong);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.3rem; font-weight: 600; color: var(--muted);
+}
+.author-avatar-img { object-fit: cover; }
+.author-name { font-weight: 600; font-size: 1rem; color: var(--ink-soft); margin-bottom: 0.25rem; }
+.author-tagline { font-size: 0.88rem; color: var(--muted); margin-bottom: 0.5rem; }
+.author-intro { font-size: 0.85rem; color: var(--muted); margin-bottom: 0.5rem; }
+.author-links { display: flex; flex-direction: column; gap: 0.2rem; margin-bottom: 0.7rem; }
+.author-links a { font-size: 0.86rem; color: var(--accent); }
+.author-badges { font-size: 0.82rem; color: var(--muted); line-height: 1.7; margin-bottom: 0.55rem; }
+.author-socials { display: flex; gap: 1.2rem; flex-wrap: wrap; }
+.author-socials span { font-size: 0.82rem; color: var(--muted); }
 </style>
 
 {% endblock %}

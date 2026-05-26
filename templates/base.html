@@ -13,32 +13,34 @@
 <div class="site-banner">
   <div class="banner-inner">
     <div class="banner-img-wrap">
-      <!-- 替换为真实 banner 图时，将下方注释取消，删掉整个 .banner-placeholder div -->
+      <!-- 替换为真实 banner 图时，取消下行注释，删掉 .banner-placeholder div；推荐尺寸 1200×240 px（5:1） -->
       <!-- <img src="{{ url_for('static', filename='banner.png') }}" alt="Coding Manager" class="banner-img"> -->
-      <div class="banner-placeholder">Coding Manager</div>
+      <div class="banner-placeholder"></div>
+
+      <!-- attribution 卡片：悬浮在 banner 右侧中部 -->
+      <a class="banner-credit" href="https://github.com/jasminemo1110" target="_blank" rel="noopener">
+        <span class="credit-label">Made by</span>
+        <span class="credit-name">茉白 Jasmine</span>
+        <span class="credit-handle">@jasminemo1110 ↗</span>
+      </a>
+
+      <!-- 导航栏：压在 banner 最底部 -->
+      <div class="banner-overlay">
+        <a class="brand" href="{{ url_for('dashboard') }}">
+          <span class="brand-mark">·</span>
+          <span class="brand-name">Coding Manager</span>
+        </a>
+        <nav class="nav">
+          <a href="{{ url_for('dashboard') }}">项目</a>
+          <a href="{{ url_for('notes_list') }}">学习</a>
+          <a href="{{ url_for('media_list') }}">自媒体</a>
+          <a href="{{ url_for('settings') }}">设置</a>
+          <a href="{{ url_for('guide') }}" class="nav-guide">快速上手</a>
+        </nav>
+      </div>
     </div>
-    <a class="banner-credit" href="https://github.com/jasminemo1110" target="_blank" rel="noopener">
-      <span class="credit-label">Made by</span>
-      <span class="credit-name">茉白 Jasmine</span>
-      <span class="credit-handle">@jasminemo1110 ↗</span>
-    </a>
   </div>
 </div>
-<header class="topbar">
-  <div class="topbar-inner">
-    <a class="brand" href="{{ url_for('dashboard') }}">
-      <span class="brand-mark">·</span>
-      <span class="brand-name">Coding Manager</span>
-    </a>
-    <nav class="nav">
-      <a href="{{ url_for('dashboard') }}">项目</a>
-      <a href="{{ url_for('notes_list') }}">学习</a>
-      <a href="{{ url_for('media_list') }}">自媒体</a>
-      <a href="{{ url_for('guide') }}">快速上手</a>
-      <a href="{{ url_for('settings') }}">设置</a>
-    </nav>
-  </div>
-</header>
 <main class="container">
   {% with messages = get_flashed_messages() %}
     {% if messages %}
