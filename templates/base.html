@@ -3,23 +3,38 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{% block title %}茉白的 Coding 工作台{% endblock %}</title>
+<title>{% block title %}Coding Manager{% endblock %}</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Source+Serif+4:wght@500;600&family=Noto+Sans+SC:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
+<div class="site-banner">
+  <div class="banner-inner">
+    <div class="banner-img-wrap">
+      <!-- 替换为真实 banner 图时，将下方注释取消，删掉整个 .banner-placeholder div -->
+      <!-- <img src="{{ url_for('static', filename='banner.png') }}" alt="Coding Manager" class="banner-img"> -->
+      <div class="banner-placeholder">Coding Manager</div>
+    </div>
+    <a class="banner-credit" href="https://github.com/jasminemo1110" target="_blank" rel="noopener">
+      <span class="credit-label">Made by</span>
+      <span class="credit-name">茉白 Jasmine</span>
+      <span class="credit-handle">@jasminemo1110 ↗</span>
+    </a>
+  </div>
+</div>
 <header class="topbar">
   <div class="topbar-inner">
     <a class="brand" href="{{ url_for('dashboard') }}">
       <span class="brand-mark">·</span>
-      <span class="brand-name">茉白的 Coding 工作台</span>
+      <span class="brand-name">Coding Manager</span>
     </a>
     <nav class="nav">
       <a href="{{ url_for('dashboard') }}">项目</a>
       <a href="{{ url_for('notes_list') }}">学习</a>
       <a href="{{ url_for('media_list') }}">自媒体</a>
+      <a href="{{ url_for('guide') }}">快速上手</a>
       <a href="{{ url_for('settings') }}">设置</a>
     </nav>
   </div>

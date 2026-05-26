@@ -1297,6 +1297,11 @@ def project_ping(pid):
     return jsonify({"ok": True, "alive": alive})
 
 
+@app.route("/guide")
+def guide():
+    return render_template("guide.html")
+
+
 if __name__ == "__main__":
     db.init_db()
     app.run(host="127.0.0.1", port=8765, debug=True)

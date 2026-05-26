@@ -1,0 +1,182 @@
+{% extends "base.html" %}
+{% block title %}快速上手 — Coding Manager{% endblock %}
+{% block content %}
+
+<div class="guide-page">
+
+  <!-- hero -->
+  <div class="guide-hero">
+    <h1>什么是 Coding Manager？</h1>
+    <p class="guide-lead">
+      一个本地运行的项目管理工具，专为 vibe coding 创作者设计。<br>
+      当你同时维护多个 AI 辅助项目时，Coding Manager 让你一眼掌握所有进度。
+    </p>
+  </div>
+
+  <!-- features -->
+  <section class="guide-section">
+    <h2>核心功能</h2>
+    <div class="guide-features">
+
+      <div class="guide-feature-card">
+        <div class="gf-icon">📁</div>
+        <div>
+          <div class="gf-title">自动扫描项目</div>
+          <div class="gf-desc">配置本地目录路径后，Coding Manager 自动发现所有 git 仓库，免手动录入。每次同步自动拉取最新 commit，再也不用逐个仓库去看。</div>
+        </div>
+      </div>
+
+      <div class="guide-feature-card">
+        <div class="gf-icon">🤖</div>
+        <div>
+          <div class="gf-title">AI 每日摘要</div>
+          <div class="gf-desc">每天同步后，Claude 自动阅读 commit message 和 diff，生成一段自然语言摘要——不只说改了什么，还会指出「放弃了什么」。需要配置 Claude API Key。</div>
+        </div>
+      </div>
+
+      <div class="guide-feature-card">
+        <div class="gf-icon">✅</div>
+        <div>
+          <div class="gf-title">每日四项清单</div>
+          <div class="gf-desc">追踪四个好习惯：更新了 CLAUDE.md、更新了 Memory、推送到 GitHub、完成部署。每天同步时自动检测前三项，部署状态手动打钩。</div>
+        </div>
+      </div>
+
+      <div class="guide-feature-card">
+        <div class="gf-icon">📝</div>
+        <div>
+          <div class="gf-title">笔记 & 灵感</div>
+          <div class="gf-desc">给每个项目记开发笔记，也可以写与项目无关的学习笔记、收藏参考资料。笔记支持标签、关联到具体某一天的日志，一键导出 Markdown。</div>
+        </div>
+      </div>
+
+      <div class="guide-feature-card">
+        <div class="gf-icon">☑️</div>
+        <div>
+          <div class="gf-title">待办管理</div>
+          <div class="gf-desc">全局待办和项目待办两个层级。项目待办标为「重要」后自动浮到顶部面板，配合每日清单状态一起看，让你每次打开就知道今天该做什么。</div>
+        </div>
+      </div>
+
+      <div class="guide-feature-card">
+        <div class="gf-icon">📣</div>
+        <div>
+          <div class="gf-title">自媒体内容管理</div>
+          <div class="gf-desc">把内容创作的选题、状态、发布时间统一管理在这里，和对应的开发项目关联起来。从「规划中」到「待发布」到「已发布」，全程追踪。</div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- setup -->
+  <section class="guide-section">
+    <h2>如何开始</h2>
+    <ol class="guide-steps">
+      <li>
+        <span class="step-num">1</span>
+        <div>
+          <strong>克隆仓库，安装依赖</strong>
+          <div class="step-code">
+            <code>git clone https://github.com/jasminemo1110/coding-manager.git</code><br>
+            <code>cd coding-manager</code><br>
+            <code>python3 -m venv .venv && source .venv/bin/activate</code><br>
+            <code>pip install -r requirements.txt</code>
+          </div>
+        </div>
+      </li>
+      <li>
+        <span class="step-num">2</span>
+        <div>
+          <strong>启动服务</strong>
+          <div class="step-code"><code>python app.py</code></div>
+          <div class="step-note">打开浏览器访问 <code>http://localhost:8765</code></div>
+        </div>
+      </li>
+      <li>
+        <span class="step-num">3</span>
+        <div>
+          <strong>填写配置（可选但推荐）</strong>
+          <div class="step-note">进入「设置」页，填写 Claude API Key 以启用 AI 摘要；填写 GitHub Token 以自动识别私有仓库可见性。</div>
+        </div>
+      </li>
+      <li>
+        <span class="step-num">4</span>
+        <div>
+          <strong>添加项目</strong>
+          <div class="step-note">在设置页配置本地扫描目录，Coding Manager 会自动扫描所有 git 仓库，逐个确认添加或排除。</div>
+        </div>
+      </li>
+      <li>
+        <span class="step-num">5</span>
+        <div>
+          <strong>每天工作完，点「同步今天」</strong>
+          <div class="step-note">自动拉取 commit、生成 AI 摘要、检测清单三项状态，当天进展一目了然。</div>
+        </div>
+      </li>
+    </ol>
+  </section>
+
+  <!-- author -->
+  <section class="guide-section guide-author-section">
+    <div class="guide-author">
+      <div class="author-avatar">茉</div>
+      <div class="author-info">
+        <div class="author-name">茉白 Jasmine</div>
+        <div class="author-bio">
+          文科背景的 vibe coding 创作者。两个月前开始用 Claude Code 做自己的工具，项目多了之后找不到顺手的管理工具，于是就自己做了这个。在小红书和即刻上记录 vibe coding 的日常，欢迎来找我聊。
+        </div>
+        <div class="author-links">
+          <a href="https://github.com/jasminemo1110" target="_blank" rel="noopener">GitHub @jasminemo1110 ↗</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<style>
+.guide-page { max-width: 780px; }
+.guide-hero { margin-bottom: 2.5rem; }
+.guide-lead { font-size: 1.05rem; color: var(--ink-soft); line-height: 1.75; margin: 0; }
+.guide-section { margin-bottom: 2.8rem; }
+.guide-section h2 { margin-bottom: 1.2rem; }
+
+.guide-features { display: flex; flex-direction: column; gap: 1rem; }
+.guide-feature-card {
+  display: flex; gap: 1rem; align-items: flex-start;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 1rem 1.2rem;
+}
+.gf-icon { font-size: 1.4rem; flex-shrink: 0; margin-top: 0.1rem; }
+.gf-title { font-weight: 600; font-size: 0.97rem; margin-bottom: 0.3rem; }
+.gf-desc { font-size: 0.88rem; color: var(--ink-soft); line-height: 1.65; }
+
+.guide-steps { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 1.2rem; }
+.guide-steps li { display: flex; gap: 1rem; align-items: flex-start; }
+.step-num {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 1.8rem; height: 1.8rem; border-radius: 50%;
+  background: var(--accent); color: var(--paper);
+  font-size: 0.82rem; font-weight: 700; flex-shrink: 0; margin-top: 0.1rem;
+}
+.step-code { margin: 0.4rem 0; display: flex; flex-direction: column; gap: 0.2rem; }
+.step-note { font-size: 0.88rem; color: var(--ink-soft); margin-top: 0.3rem; }
+
+.guide-author-section { border-top: 1px solid var(--line); padding-top: 2rem; }
+.guide-author { display: flex; gap: 1.4rem; align-items: flex-start; }
+.author-avatar {
+  width: 3rem; height: 3rem; border-radius: 50%;
+  background: var(--accent-soft); border: 2px solid var(--accent);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.2rem; font-weight: 700; color: var(--accent-ink);
+  flex-shrink: 0;
+}
+.author-name { font-weight: 700; font-size: 1rem; margin-bottom: 0.4rem; }
+.author-bio { font-size: 0.9rem; color: var(--ink-soft); line-height: 1.7; margin-bottom: 0.6rem; }
+.author-links a { font-size: 0.88rem; color: var(--accent); font-weight: 500; }
+</style>
+
+{% endblock %}
