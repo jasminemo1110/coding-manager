@@ -4,7 +4,7 @@ import os
 
 PROMPT = """你是一个帮我做"vibe coding"日志总结的助手。
 
-下面是项目 "{project_name}" 今天的 git 改动（commit message + diff 片段）。请你用一段自然的中文（200 字以内）说清楚：
+下面是项目 "{project_name}" 今天的 git 改动（commit message + diff 片段）。请你用简洁自然的中文说清楚（改动不多时 200 字左右即可，迭代内容多的日子可以适当展开，但尽量控制在 500 字以内，务必把话说完整、不要中途截断）：
 1. 今天这个项目改动了什么（出于什么目的、想达成什么效果）
 2. 在尝试或讨论之后放弃了什么（出于什么原因；线索来自 revert、被删除的大段代码、commit 中的"撤销/恢复/不要"等表述）
 
@@ -68,7 +68,7 @@ def summarize(project_name, commits, diff, api_key=None):
         diff_text = (diff or "")[:15000]
         msg = client.messages.create(
             model="claude-haiku-4-5-20251001",
-            max_tokens=400,
+            max_tokens=1200,
             messages=[
                 {
                     "role": "user",
