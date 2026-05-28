@@ -787,6 +787,51 @@ code { font-family: 'JetBrains Mono', SFMono-Regular, Menlo, monospace; font-siz
 /* project title + one-line description */
 .title-row { display: flex; align-items: baseline; gap: 0.9rem; flex-wrap: wrap; }
 .title-row h1 { margin: 0; }
+.unpushed-badge {
+  display: inline-block;
+  background: var(--amber-soft);
+  color: var(--amber);
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 0.2rem 0.7rem;
+  border-radius: 20px;
+  white-space: nowrap;
+}
+.pushed-badge {
+  display: inline-block;
+  background: var(--green-soft);
+  color: var(--green);
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 0.2rem 0.7rem;
+  border-radius: 20px;
+  white-space: nowrap;
+}
+.unpushed-list {
+  margin: 0.5rem 0 0;
+  font-size: 0.85rem;
+}
+.unpushed-list summary {
+  cursor: pointer;
+  color: var(--amber);
+  font-weight: 500;
+  user-select: none;
+}
+.unpushed-list ul {
+  margin: 0.5rem 0 0;
+  padding-left: 0;
+  list-style: none;
+}
+.unpushed-list li {
+  padding: 0.2rem 0;
+  color: var(--ink-soft);
+  border-bottom: 1px solid var(--line);
+}
+.unpushed-list li code {
+  color: var(--amber);
+  background: var(--amber-soft);
+  margin-right: 0.4rem;
+}
 .project-desc {
   display: inline-flex;
   align-items: center;

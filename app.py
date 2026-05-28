@@ -422,6 +422,7 @@ def project_detail(pid):
             notes_by_log.setdefault(n["linked_daily_log_id"], []).append(n)
     for log in logs:
         log["linked_notes"] = notes_by_log.get(log["id"], [])
+    unpushed_commits = scanner.get_unpushed_commits(p["path"]) if p.get("path") else []
     return render_template(
         "project.html",
         p=enriched,
@@ -429,6 +430,7 @@ def project_detail(pid):
         notes=notes,
         media=media,
         todos=todos,
+        unpushed_commits=unpushed_commits,
         stage_labels=db.STAGE_LABELS,
         stage_order=db.STAGE_ORDER,
         categories=all_categories(),

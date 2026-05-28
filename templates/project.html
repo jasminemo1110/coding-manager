@@ -7,6 +7,13 @@
     <a class="back" href="{{ url_for('dashboard') }}">← 项目</a>
     <div class="title-row">
       <h1>{{ p.name }}</h1>
+      {% if p.live and p.live.unpushed_count and p.live.unpushed_count > 0 %}
+      <span class="unpushed-badge" title="HEAD 上有 {{ p.live.unpushed_count }} 个 commit 还没推到任何远端">
+        ⬆ {{ p.live.unpushed_count }} 个 commit 未推
+      </span>
+      {% elif p.live and p.live.has_remote %}
+      <span class="pushed-badge" title="所有 commit 都已推送">✓ 已全部推送</span>
+      {% endif %}
       <div class="project-desc" id="project-desc"
            data-set-url="{{ url_for('project_description_set', pid=p.id) }}"
            data-gen-url="{{ url_for('project_description_generate', pid=p.id) }}">
@@ -15,6 +22,16 @@
         <button type="button" class="desc-gen" id="desc-gen-btn" title="AI 生成简介">✨</button>
       </div>
     </div>
+    {% if unpushed_commits %}
+    <details class="unpushed-list">
+      <summary>查看未推送的 commit（{{ unpushed_commits|length }}）</summary>
+      <ul>
+        {% for c in unpushed_commits %}
+        <li><code class="mono">{{ c.hash }}</code> {{ c.subject }}</li>
+        {% endfor %}
+      </ul>
+    </details>
+    {% endif %}
     <p class="muted small">
       {% if p.path %}<code>{{ p.path }}</code>{% else %}<em>想法阶段 · 暂无路径</em>{% endif %}
       {% if p.github_repo %} · <a href="https://github.com/{{ p.github_repo }}" target="_blank">🔒 私有</a>{% endif %}

@@ -131,6 +131,24 @@ def get_repo_info(path):
     return info
 
 
+def get_unpushed_commits(path, limit=20):
+    """Return list of commits on HEAD not present on any remote (short hash + subject)."""
+    if not is_git_repo(path):
+        return []
+    out, rc = run(
+        ["git", "log", "HEAD", "--not", "--remotes", f"-{limit}", "--format=%h%x1f%s"],
+        cwd=path,
+    )
+    if rc != 0 or not out:
+        return []
+    commits = []
+    for line in out.splitlines():
+        if "\x1f" in line:
+            h, subject = line.split("\x1f", 1)
+            commits.append({"hash": h, "subject": subject})
+    return commits
+
+
 def get_todays_commits(path, since_iso=None):
     """Return list of dicts for today's commits + raw diff (capped)."""
     if not is_git_repo(path):
