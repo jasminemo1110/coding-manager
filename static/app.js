@@ -134,7 +134,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const r = await fetch(cb.dataset.todoToggle, { method: 'POST' });
         const data = await r.json();
         if (data.ok) {
-          if (row) row.classList.toggle('done', !!data.done);
+          // 首页项目待办列：勾选完成后直接移除该行（已完成的留在项目详情页）
+          if (data.done && cb.hasAttribute('data-hide-when-done')) {
+            if (row) row.remove();
+          } else if (row) {
+            row.classList.toggle('done', !!data.done);
+          }
         } else {
           cb.checked = !cb.checked;
         }

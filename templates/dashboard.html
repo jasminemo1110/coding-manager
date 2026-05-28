@@ -229,10 +229,10 @@
         <input type="hidden" name="redirect_to" value="{{ url_for('dashboard', stage=stage_filter_str, category=category_filter_str, sort=sort_by) }}">
         <input type="text" name="text" placeholder="＋ 加一条待办，回车…" required>
       </form>
-      {% for t in p.project_todos %}
-      <div class="todo-row {% if t.done %}done{% endif %} {% if t.important %}important{% endif %}">
+      {% for t in p.project_todos if not t.done %}
+      <div class="todo-row {% if t.important %}important{% endif %}">
         <label class="check">
-          <input type="checkbox" {% if t.done %}checked{% endif %} data-todo-toggle="{{ url_for('project_todo_toggle', tid=t.id) }}">
+          <input type="checkbox" data-todo-toggle="{{ url_for('project_todo_toggle', tid=t.id) }}" data-hide-when-done>
           <span>{{ t.text }}</span>
         </label>
         <button type="button" class="todo-important-btn {% if t.important %}on{% endif %}"
