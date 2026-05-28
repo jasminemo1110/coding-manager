@@ -55,6 +55,8 @@
   <section class="heatmap-section">
     <h2>coding 日历 <span class="muted small">· 每天 commit 数（近半年）</span></h2>
     <div class="commit-totals">
+      <div class="ct-item ct-projects"><span class="ct-num">{{ local_project_count }}</span><span class="ct-label">个项目</span></div>
+      <span class="ct-divider"></span>
       <div class="ct-item"><span class="ct-num">{{ commit_totals.today }}</span><span class="ct-label">今天</span></div>
       <div class="ct-item"><span class="ct-num">{{ commit_totals.week }}</span><span class="ct-label">本周</span></div>
       <div class="ct-item"><span class="ct-num">{{ commit_totals.month }}</span><span class="ct-label">本月</span></div>

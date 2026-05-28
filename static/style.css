@@ -356,7 +356,14 @@ code { font-family: 'JetBrains Mono', SFMono-Regular, Menlo, monospace; font-siz
   line-height: 1.1;
 }
 .ct-label { font-size: 0.75rem; color: var(--muted); }
-.ct-unit { margin-left: auto; align-self: flex-end; }
+.ct-unit { align-self: flex-end; margin-left: -1rem; }
+.ct-projects .ct-num { color: var(--green); }
+.ct-divider {
+  width: 1px;
+  align-self: stretch;
+  background: var(--line);
+  margin: 0 0.2rem;
+}
 .hm-months {
   display: flex;
   gap: 3px;
@@ -364,7 +371,9 @@ code { font-family: 'JetBrains Mono', SFMono-Regular, Menlo, monospace; font-siz
   margin-bottom: 3px;
 }
 .hm-month {
-  width: 11px;
+  flex: 1;
+  width: auto;
+  min-width: 0;
   font-size: 0.62rem;
   color: var(--muted);
   white-space: nowrap;
@@ -382,22 +391,22 @@ code { font-family: 'JetBrains Mono', SFMono-Regular, Menlo, monospace; font-siz
   flex-shrink: 0;
 }
 .hm-weekdays span {
-  height: 11px;
+  height: 14px;
   width: 19px;
   font-size: 0.62rem;
   color: var(--muted);
-  line-height: 11px;
+  line-height: 14px;
 }
 .heatmap {
   display: flex;
   gap: 3px;
-  overflow-x: auto;
+  flex: 1;
   padding-bottom: 0.3rem;
 }
-.hm-week { display: flex; flex-direction: column; gap: 3px; }
+.hm-week { display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 0; }
 .hm-cell {
-  width: 11px;
-  height: 11px;
+  width: 100%;
+  height: 14px;
   border-radius: 2px;
   background: var(--line);
   display: inline-block;
@@ -414,7 +423,7 @@ code { font-family: 'JetBrains Mono', SFMono-Regular, Menlo, monospace; font-siz
   gap: 3px;
   margin-top: 0.5rem;
 }
-.hm-legend .hm-cell { cursor: default; }
+.hm-legend .hm-cell { cursor: default; width: 14px; height: 14px; flex: none; }
 .hm-legend .small { margin: 0 0.3rem; }
 
 /* filter bar */

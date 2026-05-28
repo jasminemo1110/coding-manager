@@ -202,17 +202,26 @@ def panel_todos():
 
 # ---------- Dashboard ----------
 
-def _commit_level(n):
-    """Map a day's commit count to a heatmap shade level 0-4."""
-    if n <= 0:
-        return 0
-    if n <= 2:
-        return 1
-    if n <= 5:
-        return 2
-    if n <= 10:
-        return 3
-    return 4
+def _make_level_fn(max_commits):
+    """Return a fn mapping a day's commit count to a shade level 0-4,
+    dynamically scaled to the busiest day in the displayed window so the
+    contrast stays meaningful as daily volume grows over time."""
+    if max_commits <= 0:
+        return lambda n: 0
+
+    def level(n):
+        if n <= 0:
+            return 0
+        ratio = n / max_commits
+        if ratio <= 0.25:
+            return 1
+        if ratio <= 0.5:
+            return 2
+        if ratio <= 0.75:
+            return 3
+        return 4
+
+    return level
 
 
 def _day_commit_index():
@@ -260,11 +269,24 @@ def commit_totals():
 
 
 def build_heatmap(weeks_back=26):
-    """GitHub-style contribution grid from daily_logs, shaded by commit count."""
+    """GitHub-style contribution grid from daily_logs, shaded by commit count.
+    Shade levels are scaled dynamically to the busiest day in the window."""
     by_date = _day_commit_index()
     today = date.today()
     start = today - dt.timedelta(days=weeks_back * 7 - 1)
     start -= dt.timedelta(days=start.weekday())  # align to Monday
+
+    # First pass: find the busiest day within the displayed window
+    max_commits = 0
+    d = start
+    while d <= today:
+        iso = d.isoformat()
+        c = by_date.get(iso, {}).get("commits", 0)
+        if c > max_commits:
+            max_commits = c
+        d += dt.timedelta(days=1)
+    level_fn = _make_level_fn(max_commits)
+
     weeks = []
     d = start
     prev_month = None
@@ -279,7 +301,7 @@ def build_heatmap(weeks_back=26):
                 commits = entry["commits"]
                 days.append({
                     "date": iso,
-                    "level": _commit_level(commits),
+                    "level": level_fn(commits),
                     "commits": commits,
                     "project_count": len(projs),
                     "projects": projs,
@@ -292,6 +314,16 @@ def build_heatmap(weeks_back=26):
             d += dt.timedelta(days=1)
         weeks.append({"days": days, "month": month_label})
     return weeks
+
+
+def local_project_count():
+    """Number of tracked projects that have an actual local folder on disk."""
+    count = 0
+    for p in all_projects():
+        path = p.get("path")
+        if path and os.path.isdir(path):
+            count += 1
+    return count
 
 
 def all_categories():
@@ -352,6 +384,7 @@ def dashboard():
         "dashboard.html",
         projects=enriched,
         commit_totals=totals,
+        local_project_count=local_project_count(),
         stage_filter_list=stage_filter_list,
         category_filter_list=category_filter_list,
         stage_filter_str=",".join(stage_filter_list),
