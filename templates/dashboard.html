@@ -53,7 +53,14 @@
   </section>
 
   <section class="heatmap-section">
-    <h2>coding 日历 <span class="muted small">· 每天 coding 项目数（近半年）</span></h2>
+    <h2>coding 日历 <span class="muted small">· 每天 commit 数（近半年）</span></h2>
+    <div class="commit-totals">
+      <div class="ct-item"><span class="ct-num">{{ commit_totals.today }}</span><span class="ct-label">今天</span></div>
+      <div class="ct-item"><span class="ct-num">{{ commit_totals.week }}</span><span class="ct-label">本周</span></div>
+      <div class="ct-item"><span class="ct-num">{{ commit_totals.month }}</span><span class="ct-label">本月</span></div>
+      <div class="ct-item"><span class="ct-num">{{ commit_totals.year }}</span><span class="ct-label">今年</span></div>
+      <span class="ct-unit muted small">commits</span>
+    </div>
     <div class="hm-months">
       {% for week in heatmap %}
         <span class="hm-month">{{ week.month or '' }}</span>
@@ -68,8 +75,8 @@
         <div class="hm-week">
           {% for day in week.days %}
             {% if day %}
-              <span class="hm-cell hm-l{{ 4 if day.count >= 4 else day.count }}"
-                    title="{{ day.date }}{% if day.projects %} · {{ day.projects|join('、') }}{% else %} · 无更新{% endif %}"></span>
+              <span class="hm-cell hm-l{{ day.level }}"
+                    title="{{ day.date }} · {{ day.commits }} commit{% if day.projects %} · {{ day.projects|join('、') }}{% else %} · 无更新{% endif %}"></span>
             {% else %}
               <span class="hm-cell hm-empty"></span>
             {% endif %}

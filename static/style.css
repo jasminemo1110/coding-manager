@@ -339,6 +339,24 @@ code { font-family: 'JetBrains Mono', SFMono-Regular, Menlo, monospace; font-siz
   margin-bottom: 1.5rem;
 }
 .heatmap-section h2 { margin: 0 0 0.7rem; font-size: 0.95rem; font-family: inherit; }
+.commit-totals {
+  display: flex;
+  align-items: baseline;
+  gap: 1.6rem;
+  margin-bottom: 1rem;
+  padding-bottom: 0.9rem;
+  border-bottom: 1px solid var(--line);
+}
+.ct-item { display: flex; flex-direction: column; align-items: baseline; gap: 0.05rem; }
+.ct-num {
+  font-family: 'Source Serif 4', serif;
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--accent);
+  line-height: 1.1;
+}
+.ct-label { font-size: 0.75rem; color: var(--muted); }
+.ct-unit { margin-left: auto; align-self: flex-end; }
 .hm-months {
   display: flex;
   gap: 3px;

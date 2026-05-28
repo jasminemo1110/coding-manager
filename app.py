@@ -202,17 +202,66 @@ def panel_todos():
 
 # ---------- Dashboard ----------
 
-def build_heatmap(weeks_back=26):
-    """GitHub-style contribution grid from daily_logs."""
+def _commit_level(n):
+    """Map a day's commit count to a heatmap shade level 0-4."""
+    if n <= 0:
+        return 0
+    if n <= 2:
+        return 1
+    if n <= 5:
+        return 2
+    if n <= 10:
+        return 3
+    return 4
+
+
+def _day_commit_index():
+    """date(iso) -> {'projects': [names], 'commits': int}, from daily_logs."""
     with db.cursor() as cur:
         cur.execute(
-            "SELECT dl.date AS d, p.name AS name FROM daily_logs dl "
+            "SELECT dl.date AS d, p.name AS name, dl.raw_commits_json AS rcj FROM daily_logs dl "
             "JOIN projects p ON p.id = dl.project_id ORDER BY dl.date"
         )
         rows = cur.fetchall()
     by_date = {}
     for r in rows:
-        by_date.setdefault(r["d"], []).append(r["name"])
+        entry = by_date.setdefault(r["d"], {"projects": [], "commits": 0})
+        entry["projects"].append(r["name"])
+        try:
+            entry["commits"] += len(json.loads(r["rcj"])) if r["rcj"] else 0
+        except Exception:
+            pass
+    return by_date
+
+
+def commit_totals():
+    """Total commits across all projects for today / this week / month / year."""
+    by_date = _day_commit_index()
+    today = date.today()
+    week_start = today - dt.timedelta(days=today.weekday())  # Monday
+    month_start = today.replace(day=1)
+    year_start = today.replace(month=1, day=1)
+    totals = {"today": 0, "week": 0, "month": 0, "year": 0}
+    for iso, entry in by_date.items():
+        try:
+            d = date.fromisoformat(iso)
+        except Exception:
+            continue
+        n = entry["commits"]
+        if d == today:
+            totals["today"] += n
+        if d >= week_start:
+            totals["week"] += n
+        if d >= month_start:
+            totals["month"] += n
+        if d >= year_start:
+            totals["year"] += n
+    return totals
+
+
+def build_heatmap(weeks_back=26):
+    """GitHub-style contribution grid from daily_logs, shaded by commit count."""
+    by_date = _day_commit_index()
     today = date.today()
     start = today - dt.timedelta(days=weeks_back * 7 - 1)
     start -= dt.timedelta(days=start.weekday())  # align to Monday
@@ -225,8 +274,16 @@ def build_heatmap(weeks_back=26):
         for _ in range(7):
             if d <= today:
                 iso = d.isoformat()
-                projs = by_date.get(iso, [])
-                days.append({"date": iso, "count": len(projs), "projects": projs})
+                entry = by_date.get(iso, {"projects": [], "commits": 0})
+                projs = entry["projects"]
+                commits = entry["commits"]
+                days.append({
+                    "date": iso,
+                    "level": _commit_level(commits),
+                    "commits": commits,
+                    "project_count": len(projs),
+                    "projects": projs,
+                })
                 if d.day <= 7 and d.month != prev_month:
                     month_label = f"{d.month}月"
                     prev_month = d.month
@@ -290,9 +347,11 @@ def dashboard():
     todos = build_todos(enriched)
     suggestions = scan_suggestions()
     heatmap = build_heatmap()
+    totals = commit_totals()
     return render_template(
         "dashboard.html",
         projects=enriched,
+        commit_totals=totals,
         stage_filter_list=stage_filter_list,
         category_filter_list=category_filter_list,
         stage_filter_str=",".join(stage_filter_list),
