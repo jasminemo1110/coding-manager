@@ -72,8 +72,9 @@
     <li class="todo-row {% if t.done %}done{% endif %}">
       <label class="check">
         <input type="checkbox" {% if t.done %}checked{% endif %} data-todo-toggle="{{ url_for('project_todo_toggle', tid=t.id) }}">
-        <span>{{ t.text }}</span>
+        <span class="todo-text" data-edit-url="{{ url_for('project_todo_edit', tid=t.id) }}">{{ t.text }}</span>
       </label>
+      <button type="button" class="todo-edit-btn" title="编辑">✎</button>
       <form method="post" action="{{ url_for('project_todo_delete', tid=t.id) }}" class="inline-delete">
         <input type="hidden" name="project_id" value="{{ p.id }}">
         <button class="btn-sm danger">×</button>

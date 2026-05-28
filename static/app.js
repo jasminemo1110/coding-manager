@@ -166,6 +166,49 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
+  // Todo inline text edit (✎)
+  document.querySelectorAll('.todo-edit-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      const row = btn.closest('.todo-row');
+      if (!row) return;
+      const span = row.querySelector('.todo-text');
+      if (!span || row.querySelector('.todo-edit-input')) return;
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.className = 'todo-edit-input';
+      input.value = span.textContent;
+      span.style.display = 'none';
+      span.parentNode.insertBefore(input, span.nextSibling);
+      input.focus();
+      input.select();
+      let settled = false;
+      const finish = async (commit) => {
+        if (settled) return;
+        settled = true;
+        const text = input.value.trim();
+        if (commit && text && text !== span.textContent) {
+          try {
+            const fd = new FormData();
+            fd.append('text', text);
+            const r = await fetch(span.dataset.editUrl, { method: 'POST', body: fd });
+            const data = await r.json();
+            if (data.ok) span.textContent = data.text;
+          } catch (err) { /* ignore */ }
+        }
+        input.remove();
+        span.style.display = '';
+      };
+      input.addEventListener('click', (ev) => ev.stopPropagation());
+      input.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Enter') { ev.preventDefault(); finish(true); }
+        else if (ev.key === 'Escape') { ev.preventDefault(); finish(false); }
+      });
+      input.addEventListener('blur', () => finish(true));
+    });
+  });
+
   // Media chip star toggle
   document.querySelectorAll('.media-star[data-url]').forEach(star => {
     star.addEventListener('click', async (e) => {

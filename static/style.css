@@ -594,6 +594,28 @@ code { font-family: 'JetBrains Mono', SFMono-Regular, Menlo, monospace; font-siz
 }
 .todo-important-btn:hover { transform: scale(1.2); }
 .todo-important-btn.on { color: var(--accent); }
+.todo-edit-btn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 0.8rem;
+  color: var(--line-strong);
+  padding: 0 0.15rem;
+  line-height: 1;
+  transition: color 0.12s, transform 0.12s;
+}
+.todo-edit-btn:hover { color: var(--accent); transform: scale(1.15); }
+.todo-edit-input {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  font-size: 0.9rem;
+  padding: 0.1rem 0.4rem;
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  background: var(--paper);
+  color: var(--ink);
+}
 
 /* cards */
 .card {

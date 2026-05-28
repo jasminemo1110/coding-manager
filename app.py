@@ -552,6 +552,16 @@ def project_todo_toggle(tid):
     return jsonify({"ok": True, "done": row["done"] if row else 0})
 
 
+@app.route("/todo/<int:tid>/edit", methods=["POST"])
+def project_todo_edit(tid):
+    text = (request.form.get("text") or "").strip()
+    if not text:
+        return jsonify({"ok": False, "reason": "empty"})
+    with db.cursor() as cur:
+        cur.execute("UPDATE project_todos SET text = ? WHERE id = ?", (text, tid))
+    return jsonify({"ok": True, "text": text})
+
+
 @app.route("/todo/<int:tid>/delete", methods=["POST"])
 def project_todo_delete(tid):
     pid = request.form.get("project_id")

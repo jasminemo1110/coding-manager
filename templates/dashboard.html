@@ -242,8 +242,9 @@
       <div class="todo-row {% if t.important %}important{% endif %}">
         <label class="check">
           <input type="checkbox" data-todo-toggle="{{ url_for('project_todo_toggle', tid=t.id) }}" data-hide-when-done>
-          <span>{{ t.text }}</span>
+          <span class="todo-text" data-edit-url="{{ url_for('project_todo_edit', tid=t.id) }}">{{ t.text }}</span>
         </label>
+        <button type="button" class="todo-edit-btn" title="编辑">✎</button>
         <button type="button" class="todo-important-btn {% if t.important %}on{% endif %}"
                 data-url="{{ url_for('project_todo_important', tid=t.id) }}"
                 title="标为重要 · 同步到顶部待办区">★</button>
