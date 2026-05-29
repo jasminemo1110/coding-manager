@@ -1408,4 +1408,5 @@ def guide():
 
 if __name__ == "__main__":
     db.init_db()
-    app.run(host="127.0.0.1", port=8765, debug=True)
+    debug = os.environ.get("FLASK_DEBUG", "").lower() in ("1", "true", "yes")
+    app.run(host="127.0.0.1", port=8765, debug=debug)

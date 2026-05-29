@@ -121,8 +121,7 @@ CREATE TABLE IF NOT EXISTS project_categories (
 """
 
 DEFAULT_SCAN_PATHS = [
-    "/Users/lixiaonan/code",
-    "/Users/lixiaonan/.claude/skills",
+    os.path.expanduser("~/code"),
 ]
 
 

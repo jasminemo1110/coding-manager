@@ -124,5 +124,4 @@ MIT License — 自由使用、修改和分发。
 **茉白 Jasmine** — 日语老师出身，纯文科背景零基础 vibe coding 创作者。
 
 - GitHub：[@jasminemo1110](https://github.com/jasminemo1110)
-- 邮件：jasminemo1110@gmail.com
 - 全平台：茉白Jasmine（微信 / X / 小红书 / 即刻）
