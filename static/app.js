@@ -11,7 +11,7 @@ document.addEventListener('DOMContentLoaded', () => {
       try {
         const r = await fetch(syncAll.dataset.url, { method: 'POST' });
         const data = await r.json();
-        const msg = `${data.synced} 个项目已同步，${data.skipped} 个项目今天没有改动`;
+        const msg = `${data.synced} 个项目已同步到最新，${data.skipped} 个项目无新改动`;
         syncAll.textContent = '✓ ' + msg;
         setTimeout(() => { window.location.reload(); }, 1200);
       } catch (e) {
@@ -33,11 +33,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const r = await fetch(syncOne.dataset.url, { method: 'POST' });
         const data = await r.json();
         if (data.skipped) {
-          syncOne.textContent = '✓ 今天没有改动';
+          syncOne.textContent = '✓ 没有新改动';
           syncOne.disabled = false;
           setTimeout(() => { syncOne.textContent = originalText; }, 2200);
         } else {
-          syncOne.textContent = `✓ ${data.commits} 条 commit`;
+          const dayPart = data.days > 1 ? `${data.days} 天 / ` : '';
+          syncOne.textContent = `✓ ${dayPart}${data.commits} 条 commit`;
           setTimeout(() => { window.location.reload(); }, 800);
         }
       } catch (e) {

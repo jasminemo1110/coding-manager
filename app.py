@@ -732,41 +732,61 @@ def project_delete(pid):
 
 # ---------- Sync ----------
 
-def sync_one_project(pid):
-    """Pull today's commits + AI summary for one project, and auto-detect checklist items."""
-    p = get_project(pid)
-    if not p or not p.get("path"):
-        return {"project_id": pid, "ok": False, "reason": "no path"}
-    today = date.today().isoformat()
-    commits, diff = scanner.get_todays_commits(p["path"])
+# 「同步到最新」回看上限：水位线缺失/异常时，一次最多回扫这么多天，避免误扫几个月旧历史浪费 AI 调用
+MAX_SYNC_LOOKBACK_DAYS = 60
+
+
+def _sync_start_date(pid, today):
+    """这个项目本次该从哪天开始补：上次水位线的次日，但不早于 today - 回看上限。"""
+    floor = (date.fromisoformat(today) - dt.timedelta(days=MAX_SYNC_LOOKBACK_DAYS))
+    wm = db.get_setting(f"last_sync_date:{pid}")
+    if wm:
+        try:
+            start = date.fromisoformat(wm) + dt.timedelta(days=1)
+        except ValueError:
+            start = floor
+    else:
+        start = floor
+    return max(start, floor)
+
+
+def sync_project_day(p, day_iso, today, unpushed_hashes, mem_day, info, api_key):
+    """补齐某个项目某一天的日志：commit 列表 + AI 摘要 + 自动检测三项清单。
+
+    清单三项里 CLAUDE.md / GitHub 推送可以按那天精确回算；memory 只有「今天」能测
+    （文件系统只知道当前 mtime，无法追溯历史某天是否动过 memory），历史天保持未勾选。
+    返回 (commits 数, 是否真正写入)。
+    """
+    pid = p["id"]
+    is_today = day_iso == today
+    commits, diff = scanner.get_commits_for_day(p["path"], day_iso)
     if not commits:
-        return {"project_id": pid, "ok": True, "skipped": True, "commits": 0}
-    api_key = db.get_setting("anthropic_api_key") or os.environ.get("ANTHROPIC_API_KEY")
+        return 0, False
+
+    # 已经有摘要的历史天就别再重复调 AI（今天例外：每次都刷新覆盖）
+    with db.cursor() as cur:
+        cur.execute(
+            "SELECT auto_summary FROM daily_logs WHERE project_id = ? AND date = ?",
+            (pid, day_iso),
+        )
+        row = cur.fetchone()
+    already_summarized = bool(row and (row["auto_summary"] or "").strip())
+    if already_summarized and not is_today:
+        return len(commits), False
+
     summary = ai.summarize(p["name"], commits, diff, api_key=api_key) if api_key else None
-    # auto-detect checklist items from git/filesystem state.
-    # These 3 are precisely detectable, so a re-sync OVERWRITES them with fresh truth.
-    # `deployed` is never touched here — it stays purely manual.
-    info = scanner.get_repo_info(p["path"])
-    changed_files = scanner.get_todays_changed_files(p["path"])
-    # CLAUDE.md counts as "updated today" only if it was actually modified in today's commits
+
+    # 自动检测清单（可精确测量，故覆盖式写入）；deployed 永远纯手动，不碰
+    changed_files = scanner.get_changed_files_for_day(p["path"], day_iso)
     auto_claudemd = 1 if "CLAUDE.md" in changed_files else 0
-    # pushed only if there are zero commits missing from remotes (0 also means: no commits;
-    # but get_todays_commits already guaranteed commits exist, so 0 here means truly pushed)
-    auto_pushed = 1 if info.get("unpushed_count", 0) == 0 else 0
-    mem = scanner.memory_mtime(p["path"])
-    auto_memory = 1 if (mem and mem[:10] == today) else 0
-    # default checklist for a *new* log: drop 'deployed' if not tracked, drop CLAUDE.md if no file
+    # 这天的 commit 是否都已推到 remote：只要有一条还在「未推集合」里，就算没推
+    day_hashes = {c["hash"] for c in commits}
+    auto_pushed = 0 if (day_hashes & unpushed_hashes) else 1
+    # memory 只有今天可测
+    auto_memory = 1 if (is_today and mem_day == today) else 0
+
     has_claudemd = bool(info.get("has_claudemd"))
     disabled = default_disabled_for(p, has_claudemd=has_claudemd)
-    # re-check GitHub visibility while we're here (keeps the public/private badge accurate)
-    if p.get("github_repo"):
-        token = db.get_setting("github_token")
-        vis = scanner.github_visibility(p["github_repo"], token)
-        if vis:
-            with db.cursor() as cur:
-                cur.execute(
-                    "UPDATE projects SET github_visibility = ? WHERE id = ?", (vis, pid)
-                )
     with db.cursor() as cur:
         cur.execute(
             "INSERT INTO daily_logs (project_id, date, auto_summary, raw_commits_json, "
@@ -775,14 +795,62 @@ def sync_one_project(pid):
             "ON CONFLICT(project_id, date) DO UPDATE SET "
             "auto_summary=excluded.auto_summary, raw_commits_json=excluded.raw_commits_json, "
             "claudemd_updated=excluded.claudemd_updated, "
-            "memory_updated=excluded.memory_updated, "
+            "memory_updated=max(daily_logs.memory_updated, excluded.memory_updated), "
             "pushed_to_github=excluded.pushed_to_github",
             (
-                pid, today, summary, json.dumps(commits, ensure_ascii=False),
+                pid, day_iso, summary, json.dumps(commits, ensure_ascii=False),
                 auto_claudemd, auto_memory, auto_pushed, disabled,
             ),
         )
-    return {"project_id": pid, "ok": True, "commits": len(commits), "summary": summary}
+    return len(commits), True
+
+
+def sync_one_project(pid):
+    """从上次同步水位线补到今天：逐天找出有 commit 但未生成摘要的日子，补齐全套日志。"""
+    p = get_project(pid)
+    if not p or not p.get("path"):
+        return {"project_id": pid, "ok": False, "reason": "no path"}
+    today = date.today().isoformat()
+    api_key = db.get_setting("anthropic_api_key") or os.environ.get("ANTHROPIC_API_KEY")
+    # 整段时间窗里复用同一份「未推 hash 集合 / memory mtime / repo 信息」，避免逐天重复跑 git
+    unpushed_hashes = scanner.get_unpushed_hashes(p["path"])
+    mem = scanner.memory_mtime(p["path"])
+    mem_day = mem[:10] if mem else None
+    info = scanner.get_repo_info(p["path"])
+
+    # 顺手刷新 GitHub 可见性徽章
+    if p.get("github_repo"):
+        token = db.get_setting("github_token")
+        vis = scanner.github_visibility(p["github_repo"], token)
+        if vis:
+            with db.cursor() as cur:
+                cur.execute(
+                    "UPDATE projects SET github_visibility = ? WHERE id = ?", (vis, pid)
+                )
+
+    start = _sync_start_date(pid, today)
+    end = date.fromisoformat(today)
+    total_commits = 0
+    synced_days = 0
+    cur_day = start
+    while cur_day <= end:
+        n, wrote = sync_project_day(
+            p, cur_day.isoformat(), today, unpushed_hashes, mem_day, info, api_key
+        )
+        total_commits += n
+        if wrote:
+            synced_days += 1
+        cur_day += dt.timedelta(days=1)
+
+    # 推进水位线到今天
+    db.set_setting(f"last_sync_date:{pid}", today)
+
+    if total_commits == 0:
+        return {"project_id": pid, "ok": True, "skipped": True, "commits": 0, "days": 0}
+    return {
+        "project_id": pid, "ok": True,
+        "commits": total_commits, "days": synced_days,
+    }
 
 
 @app.route("/sync/today", methods=["POST"])

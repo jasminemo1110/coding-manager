@@ -215,6 +215,34 @@ def get_todays_changed_files(path, since_iso=None):
     return {line.strip() for line in out.splitlines() if line.strip()}
 
 
+def get_changed_files_for_day(path, day_iso):
+    """Set of file paths modified in a specific day's commits (precise, not diff search)."""
+    if not is_git_repo(path):
+        return set()
+    after = f"{day_iso} 00:00"
+    before = f"{day_iso} 23:59:59"
+    out, _ = run(
+        ["git", "log", f"--since={after}", f"--until={before}",
+         "--name-only", "--format=", "--no-merges"],
+        cwd=path,
+    )
+    return {line.strip() for line in out.splitlines() if line.strip()}
+
+
+def get_unpushed_hashes(path):
+    """Set of full commit hashes on HEAD not present on any remote.
+
+    With no remote at all, every commit is 'unpushed' (correct). Lets us decide,
+    for any given day, whether that day's commits have made it to a remote.
+    """
+    if not is_git_repo(path):
+        return set()
+    out, rc = run(["git", "rev-list", "HEAD", "--not", "--remotes"], cwd=path)
+    if rc != 0 or not out:
+        return set()
+    return {h.strip() for h in out.splitlines() if h.strip()}
+
+
 def get_commits_for_day(path, day_iso):
     """Return commits + diff for a specific date (YYYY-MM-DD)."""
     if not is_git_repo(path):

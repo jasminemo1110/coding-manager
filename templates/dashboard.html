@@ -5,7 +5,7 @@
 <div class="page-head">
   <h1>项目</h1>
   <div class="head-actions">
-    <button class="btn btn-primary" id="sync-today-btn" data-url="{{ url_for('sync_today_all') }}">🔄 同步今天（全部项目）</button>
+    <button class="btn btn-primary" id="sync-today-btn" data-url="{{ url_for('sync_today_all') }}" title="补齐上次同步至今每一天有改动但还没生成摘要的日子">🔄 全部项目同步到最新</button>
     <button class="btn" id="sync-history-btn" data-url="{{ url_for('sync_history_all') }}" title="把所有项目的全部历史 commit 拉进来（仅 commit 列表，不调 AI）">📥 导入历史</button>
     <button class="btn" onclick="document.getElementById('add-project-dialog').showModal()">＋ 新项目</button>
   </div>
