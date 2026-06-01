@@ -830,6 +830,9 @@ def sync_one_project(pid):
 
     start = _sync_start_date(pid, today)
     end = date.fromisoformat(today)
+    # 今天永远参与同步：当天清单本就每次覆盖刷新（先同步后推送时要能补上推送勾）。
+    # 水位线只用来决定「往前补到哪天」，不该把今天排除掉。
+    start = min(start, end)
     total_commits = 0
     synced_days = 0
     cur_day = start
