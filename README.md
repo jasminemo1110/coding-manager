@@ -57,11 +57,11 @@ python app.py
 
 | 配置项 | 用途 | 没有时的影响 |
 |--------|------|------------|
-| **Claude API Key** | 生成 AI 每日摘要和项目简介 | 摘要功能不可用，其余正常 |
+| **AI API Key** | 生成 AI 每日摘要和项目简介（OpenAI 兼容接口，默认 DeepSeek） | 摘要功能不可用，其余正常 |
 | **GitHub Token** | 自动识别私有仓库可见性 | 私有仓库显示为「未知」 |
 | **扫描路径** | 自动发现本地 git 项目 | 需手动添加项目 |
 
-API Key 申请：[console.anthropic.com](https://console.anthropic.com)
+API Key 申请：默认用 [DeepSeek](https://platform.deepseek.com)（便宜、注册简单、国内可直连）；也可在「设置」页把 Base URL 和模型改成 OpenAI、通义千问等任意 OpenAI 兼容服务商。
 
 ---
 
@@ -100,7 +100,7 @@ app.run(host="0.0.0.0", port=8765, debug=False)
 1. 在 [railway.app](https://railway.app) 导入 GitHub 仓库
 2. 添加 Volume，挂载路径设为项目根目录
 3. 设置启动命令：`python app.py`
-4. 部署完成后在 Variables 中添加 `ANTHROPIC_API_KEY`
+4. 部署完成后在应用「设置」页填入 AI 服务商的 Key（默认 DeepSeek），或用 `OPENAI_API_KEY` 环境变量兜底
 
 ---
 
@@ -109,7 +109,7 @@ app.run(host="0.0.0.0", port=8765, debug=False)
 - **后端**：Python 3 + Flask
 - **数据库**：SQLite（本地文件，自动创建）
 - **前端**：Jinja2 模板 + 原生 JS + 手写 CSS（无构建步骤）
-- **AI**：Anthropic Claude API（claude-haiku，可选）
+- **AI**：OpenAI 兼容接口（默认 DeepSeek，可选；可切 OpenAI / 通义千问等）
 
 ---
 
