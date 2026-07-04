@@ -1,6 +1,13 @@
-"""Claude API integration for daily change summaries."""
+"""LLM integration for daily change summaries.
+
+走 OpenAI 兼容接口，服务商无关：DeepSeek / OpenAI / 通义千问都支持同一套 API，
+只是 base_url 和模型名不同（在设置页配置）。默认 DeepSeek。
+"""
 
 import os
+
+DEFAULT_BASE_URL = "https://api.deepseek.com"
+DEFAULT_MODEL = "deepseek-chat"
 
 PROMPT = """你是一个帮我做"vibe coding"日志总结的助手。
 
@@ -30,56 +37,60 @@ DESCRIBE_PROMPT = """下面是项目 "{project_name}" 的一些信息（可能�
 """
 
 
-def describe_project(project_name, context, api_key=None):
-    api_key = api_key or os.environ.get("ANTHROPIC_API_KEY")
-    if not api_key or not context.strip():
+def _resolve(cfg):
+    """从 cfg（app 传入）或环境变量解析出 (api_key, base_url, model)。"""
+    cfg = cfg or {}
+    api_key = cfg.get("api_key") or os.environ.get("OPENAI_API_KEY", "")
+    base_url = cfg.get("base_url") or os.environ.get("AI_BASE_URL") or DEFAULT_BASE_URL
+    model = cfg.get("model") or os.environ.get("AI_MODEL") or DEFAULT_MODEL
+    return api_key, base_url, model
+
+
+def _chat(cfg, prompt, max_tokens):
+    api_key, base_url, model = _resolve(cfg)
+    if not api_key:
+        return None
+    from openai import OpenAI
+    client = OpenAI(api_key=api_key, base_url=base_url)
+    resp = client.chat.completions.create(
+        model=model,
+        max_tokens=max_tokens,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    return (resp.choices[0].message.content or "").strip()
+
+
+def describe_project(project_name, context, cfg=None):
+    if not context.strip():
+        return None
+    api_key, _, _ = _resolve(cfg)
+    if not api_key:
         return None
     try:
-        from anthropic import Anthropic
-        client = Anthropic(api_key=api_key)
-        msg = client.messages.create(
-            model="claude-haiku-4-5-20251001",
-            max_tokens=100,
-            messages=[
-                {
-                    "role": "user",
-                    "content": DESCRIBE_PROMPT.format(
-                        project_name=project_name,
-                        context=context[:8000],
-                    ),
-                }
-            ],
+        return _chat(
+            cfg,
+            DESCRIBE_PROMPT.format(project_name=project_name, context=context[:8000]),
+            100,
         )
-        return msg.content[0].text.strip()
     except Exception as e:
         return f"[AI 生成失败：{e}]"
 
 
-def summarize(project_name, commits, diff, api_key=None):
-    api_key = api_key or os.environ.get("ANTHROPIC_API_KEY")
+def summarize(project_name, commits, diff, cfg=None):
+    api_key, _, _ = _resolve(cfg)
     if not api_key:
         return None
     if not commits:
         return None
     try:
-        from anthropic import Anthropic
-        client = Anthropic(api_key=api_key)
         commits_text = "\n".join(f"- {c['subject']}" for c in commits)
         diff_text = (diff or "")[:15000]
-        msg = client.messages.create(
-            model="claude-haiku-4-5-20251001",
-            max_tokens=1200,
-            messages=[
-                {
-                    "role": "user",
-                    "content": PROMPT.format(
-                        project_name=project_name,
-                        commits=commits_text,
-                        diff=diff_text,
-                    ),
-                }
-            ],
+        return _chat(
+            cfg,
+            PROMPT.format(
+                project_name=project_name, commits=commits_text, diff=diff_text
+            ),
+            1200,
         )
-        return msg.content[0].text.strip()
     except Exception as e:
         return f"[AI 摘要失败：{e}]"

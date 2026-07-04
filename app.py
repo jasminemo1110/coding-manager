@@ -443,7 +443,6 @@ def project_add_from_scan():
         return redirect(url_for("dashboard"))
     name = os.path.basename(path)
     info = scanner.get_repo_info(path)
-    api_key = db.get_setting("anthropic_api_key")
     github_token = db.get_setting("github_token")
     visibility = None
     if info.get("github_repo"):
@@ -750,7 +749,16 @@ def _sync_start_date(pid, today):
     return max(start, floor)
 
 
-def sync_project_day(p, day_iso, today, unpushed_hashes, mem_day, info, api_key):
+def get_ai_config():
+    """AI 摘要服务商配置（OpenAI 兼容）。默认 DeepSeek；换服务商只改这三项设置。"""
+    return {
+        "api_key": db.get_setting("ai_api_key") or os.environ.get("OPENAI_API_KEY", ""),
+        "base_url": db.get_setting("ai_base_url") or "https://api.deepseek.com",
+        "model": db.get_setting("ai_model") or "deepseek-chat",
+    }
+
+
+def sync_project_day(p, day_iso, today, unpushed_hashes, mem_day, info, ai_cfg):
     """补齐某个项目某一天的日志：commit 列表 + AI 摘要 + 自动检测三项清单。
 
     清单三项里 CLAUDE.md / GitHub 推送可以按那天精确回算；memory 只有「今天」能测
@@ -774,7 +782,11 @@ def sync_project_day(p, day_iso, today, unpushed_hashes, mem_day, info, api_key)
     if already_summarized and not is_today:
         return len(commits), False
 
-    summary = ai.summarize(p["name"], commits, diff, api_key=api_key) if api_key else None
+    summary = (
+        ai.summarize(p["name"], commits, diff, cfg=ai_cfg)
+        if ai_cfg.get("api_key")
+        else None
+    )
 
     # 自动检测清单（可精确测量，故覆盖式写入）；deployed 永远纯手动，不碰
     changed_files = scanner.get_changed_files_for_day(p["path"], day_iso)
@@ -811,7 +823,7 @@ def sync_one_project(pid):
     if not p or not p.get("path"):
         return {"project_id": pid, "ok": False, "reason": "no path"}
     today = date.today().isoformat()
-    api_key = db.get_setting("anthropic_api_key") or os.environ.get("ANTHROPIC_API_KEY")
+    ai_cfg = get_ai_config()
     # 整段时间窗里复用同一份「未推 hash 集合 / memory mtime / repo 信息」，避免逐天重复跑 git
     unpushed_hashes = scanner.get_unpushed_hashes(p["path"])
     mem = scanner.memory_mtime(p["path"])
@@ -838,7 +850,7 @@ def sync_one_project(pid):
     cur_day = start
     while cur_day <= end:
         n, wrote = sync_project_day(
-            p, cur_day.isoformat(), today, unpushed_hashes, mem_day, info, api_key
+            p, cur_day.isoformat(), today, unpushed_hashes, mem_day, info, ai_cfg
         )
         total_commits += n
         if wrote:
@@ -934,10 +946,10 @@ def log_regen_summary(log_id):
     commits, diff = scanner.get_commits_for_day(p["path"], log["date"])
     if not commits:
         return jsonify({"ok": False, "reason": "no commits on that day"})
-    api_key = db.get_setting("anthropic_api_key") or os.environ.get("ANTHROPIC_API_KEY")
-    if not api_key:
+    ai_cfg = get_ai_config()
+    if not ai_cfg.get("api_key"):
         return jsonify({"ok": False, "reason": "no api key"})
-    summary = ai.summarize(p["name"], commits, diff, api_key=api_key)
+    summary = ai.summarize(p["name"], commits, diff, cfg=ai_cfg)
     with db.cursor() as cur:
         cur.execute("UPDATE daily_logs SET auto_summary=? WHERE id=?", (summary, log_id))
     return jsonify({"ok": True, "summary": summary})
@@ -1022,8 +1034,8 @@ def project_description_generate(pid):
     p = get_project(pid)
     if not p:
         abort(404)
-    api_key = db.get_setting("anthropic_api_key") or os.environ.get("ANTHROPIC_API_KEY")
-    if not api_key:
+    ai_cfg = get_ai_config()
+    if not ai_cfg.get("api_key"):
         return jsonify({"ok": False, "reason": "no api key"})
     # build context: CLAUDE.md content if available, else recent auto-summaries
     context = ""
@@ -1043,7 +1055,7 @@ def project_description_generate(pid):
                 (pid,),
             )
             context = "\n".join(r["auto_summary"] for r in cur.fetchall())
-    desc = ai.describe_project(p["name"], context, api_key=api_key)
+    desc = ai.describe_project(p["name"], context, cfg=ai_cfg)
     if not desc:
         return jsonify({"ok": False, "reason": "no context to summarize"})
     with db.cursor() as cur:
@@ -1425,17 +1437,21 @@ def settings():
         paths_raw = request.form.get("scan_paths", "")
         paths = [p.strip() for p in paths_raw.splitlines() if p.strip()]
         db.set_scan_paths(paths)
-        api_key = request.form.get("anthropic_api_key", "").strip()
+        api_key = request.form.get("ai_api_key", "").strip()
         if api_key:
-            db.set_setting("anthropic_api_key", api_key)
+            db.set_setting("ai_api_key", api_key)
         elif "clear_api_key" in request.form:
-            db.set_setting("anthropic_api_key", "")
+            db.set_setting("ai_api_key", "")
+        db.set_setting("ai_base_url", request.form.get("ai_base_url", "").strip())
+        db.set_setting("ai_model", request.form.get("ai_model", "").strip())
         gh = request.form.get("github_token", "").strip()
         if gh:
             db.set_setting("github_token", gh)
         return redirect(url_for("settings"))
     paths = db.get_scan_paths()
-    api_key = db.get_setting("anthropic_api_key", "")
+    api_key = db.get_setting("ai_api_key", "")
+    ai_base_url = db.get_setting("ai_base_url", "") or "https://api.deepseek.com"
+    ai_model = db.get_setting("ai_model", "") or "deepseek-chat"
     gh = db.get_setting("github_token", "")
     with db.cursor() as cur:
         cur.execute("SELECT * FROM projects WHERE excluded_from_scan = 1 ORDER BY name")
@@ -1446,6 +1462,8 @@ def settings():
         "settings.html",
         scan_paths="\n".join(paths),
         api_key_set=bool(api_key),
+        ai_base_url=ai_base_url,
+        ai_model=ai_model,
         github_token_set=bool(gh),
         excluded=excluded,
         categories=categories,

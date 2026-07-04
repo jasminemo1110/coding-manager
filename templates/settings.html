@@ -14,12 +14,18 @@
   </section>
 
   <section>
-    <h2>Claude API Key</h2>
-    <p class="muted small">用于"同步到最新"时生成自然语言摘要（Haiku，约 ¥0.02/天/项目）。留空则不生成摘要，只保留 commit 列表。</p>
-    <label class="check"><input type="text" name="anthropic_api_key" placeholder="sk-ant-…" style="width:100%"></label>
+    <h2>AI 摘要服务商（OpenAI 兼容）</h2>
+    <p class="muted small">用于"同步到最新"时生成自然语言摘要。留空 Key 则不生成摘要，只保留 commit 列表。默认 DeepSeek（便宜、免 VPN）。换服务商只改下面 Base URL + 模型两项：<br>
+      · DeepSeek：<code>https://api.deepseek.com</code> ／ <code>deepseek-chat</code><br>
+      · OpenAI：<code>https://api.openai.com/v1</code> ／ <code>gpt-4o-mini</code>（需 VPN）<br>
+      · 通义千问：<code>https://dashscope.aliyuncs.com/compatible-mode/v1</code> ／ <code>qwen-plus</code>
+    </p>
+    <label class="check">API Key<input type="text" name="ai_api_key" placeholder="留空则不覆盖已有值" style="width:100%"></label>
     {% if api_key_set %}
       <p class="muted small">✓ 已设置（保存新值会覆盖）。 <label class="check inline"><input type="checkbox" name="clear_api_key"> 清除</label></p>
     {% endif %}
+    <label class="check">Base URL<input type="text" name="ai_base_url" value="{{ ai_base_url }}" style="width:100%"></label>
+    <label class="check">模型<input type="text" name="ai_model" value="{{ ai_model }}" style="width:100%"></label>
   </section>
 
   <section>
