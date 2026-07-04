@@ -758,7 +758,7 @@ def get_ai_config():
     }
 
 
-def sync_project_day(p, day_iso, today, unpushed_hashes, mem_day, info, ai_cfg):
+def sync_project_day(p, day_iso, today, unpushed_hashes, mem_today, info, ai_cfg):
     """补齐某个项目某一天的日志：commit 列表 + AI 摘要 + 自动检测三项清单。
 
     清单三项里 CLAUDE.md / GitHub 推送可以按那天精确回算；memory 只有「今天」能测
@@ -795,7 +795,7 @@ def sync_project_day(p, day_iso, today, unpushed_hashes, mem_day, info, ai_cfg):
     day_hashes = {c["hash"] for c in commits}
     auto_pushed = 0 if (day_hashes & unpushed_hashes) else 1
     # memory 只有今天可测
-    auto_memory = 1 if (is_today and mem_day == today) else 0
+    auto_memory = 1 if (is_today and mem_today) else 0
 
     has_claudemd = bool(info.get("has_claudemd"))
     disabled = default_disabled_for(p, has_claudemd=has_claudemd)
@@ -824,10 +824,9 @@ def sync_one_project(pid):
         return {"project_id": pid, "ok": False, "reason": "no path"}
     today = date.today().isoformat()
     ai_cfg = get_ai_config()
-    # 整段时间窗里复用同一份「未推 hash 集合 / memory mtime / repo 信息」，避免逐天重复跑 git
+    # 整段时间窗里复用同一份「未推 hash 集合 / memory 今日状态 / repo 信息」，避免逐天重复跑
     unpushed_hashes = scanner.get_unpushed_hashes(p["path"])
-    mem = scanner.memory_mtime(p["path"])
-    mem_day = mem[:10] if mem else None
+    mem_today = scanner.memory_updated_today(p["name"], p["path"], today)
     info = scanner.get_repo_info(p["path"])
 
     # 顺手刷新 GitHub 可见性徽章
@@ -850,7 +849,7 @@ def sync_one_project(pid):
     cur_day = start
     while cur_day <= end:
         n, wrote = sync_project_day(
-            p, cur_day.isoformat(), today, unpushed_hashes, mem_day, info, ai_cfg
+            p, cur_day.isoformat(), today, unpushed_hashes, mem_today, info, ai_cfg
         )
         total_commits += n
         if wrote:

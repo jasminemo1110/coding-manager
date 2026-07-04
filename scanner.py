@@ -1,6 +1,7 @@
 """Filesystem + git scanning. Read-only operations against local repos."""
 
 import os
+import re
 import subprocess
 import json
 import hashlib
@@ -285,22 +286,66 @@ def memory_dir_for_project(path):
     return candidate
 
 
-def memory_mtime(path):
-    mem = memory_dir_for_project(path)
-    if mem and os.path.isdir(mem):
-        latest = 0
-        for root, _, files in os.walk(mem):
+def _norm(s):
+    """归一化用于匹配：转小写、去掉所有非字母数字（连字符/下划线/空格/emoji 都抹平）。"""
+    return re.sub(r"[^a-z0-9]", "", (s or "").lower())
+
+
+def _parent_memory_dir(path):
+    """从项目父目录（如 ~/code）启动 Claude Code 时，memory 落的共享目录。"""
+    if not path:
+        return None
+    parent = os.path.dirname(os.path.abspath(path))
+    encoded = "-" + parent.lstrip("/").replace("/", "-")
+    return os.path.expanduser(f"~/.claude/projects/{encoded}/memory")
+
+
+def _file_mtime_day(fp):
+    try:
+        return datetime.fromtimestamp(os.path.getmtime(fp)).date().isoformat()
+    except OSError:
+        return None
+
+
+def memory_updated_today(project_name, path, today):
+    """今天有没有往「本项目」相关的 memory 写过东西。并查两处：
+
+    1. 项目专属目录（从项目文件夹里启动 Claude 时 memory 落这）：任何文件今天被动过即算。
+    2. 全局父目录 ~/code（跨项目会话时 memory 落这）：文件名或正文包含项目规范名、
+       且今天被动过才算——靠规范名（projects.name 归一化）把共享目录里的文件归属到项目。
+
+    只能识别「今天」：文件系统只有当前 mtime，无法追溯历史某天是否动过。
+    """
+    # 1) 项目专属目录：任何事实文件今天动过（跳过 MEMORY.md 索引，它被动 ≠ 有新内容）
+    own = memory_dir_for_project(path)
+    if own and os.path.isdir(own):
+        for root, _, files in os.walk(own):
             for f in files:
+                if f.lower() == "memory.md":
+                    continue
+                if _file_mtime_day(os.path.join(root, f)) == today:
+                    return True
+
+    # 2) 全局父目录：按规范名归属（文件名或正文含 slug）
+    slug = _norm(project_name)
+    shared = _parent_memory_dir(path)
+    if slug and shared and os.path.isdir(shared):
+        for root, _, files in os.walk(shared):
+            for f in files:
+                if f.lower() == "memory.md":  # 跳过索引文件，避免它连带点亮所有项目
+                    continue
                 fp = os.path.join(root, f)
-                try:
-                    m = os.path.getmtime(fp)
-                    if m > latest:
-                        latest = m
+                if _file_mtime_day(fp) != today:
+                    continue
+                if slug in _norm(f):  # 文件名匹配
+                    return True
+                try:  # 正文匹配
+                    with open(fp, encoding="utf-8", errors="ignore") as fh:
+                        if slug in _norm(fh.read()):
+                            return True
                 except OSError:
                     pass
-        if latest:
-            return datetime.fromtimestamp(latest).isoformat()
-    return None
+    return False
 
 
 def ping_url(url, timeout=5):
