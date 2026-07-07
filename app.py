@@ -778,7 +778,9 @@ def sync_project_day(p, day_iso, today, unpushed_hashes, mem_today, info, ai_cfg
             (pid, day_iso),
         )
         row = cur.fetchone()
-    already_summarized = bool(row and (row["auto_summary"] or "").strip())
+    summary_text = (row["auto_summary"] or "").strip() if row else ""
+    # 失败占位文本（[AI 摘要失败：…]）不算已有摘要，否则一次网络抖动会让历史天永远停在错误文本上
+    already_summarized = bool(summary_text) and not summary_text.startswith("[AI")
     if already_summarized and not is_today:
         return len(commits), False
 
