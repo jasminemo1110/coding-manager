@@ -141,10 +141,36 @@ def latest_log_with_commits(pid):
         return dict(row) if row else None
 
 
-def enrich_project(p):
-    """Add live filesystem/git data to a project row (non-mutating)."""
+def save_repo_snapshot(pid, info):
+    """把 get_repo_info 的结果落库。看板读快照即可，不用每次开一堆 git 子进程。"""
+    with db.cursor() as cur:
+        cur.execute(
+            "UPDATE projects SET repo_snapshot = ?, repo_snapshot_at = ? WHERE id = ?",
+            (
+                json.dumps(info, ensure_ascii=False),
+                datetime.now().isoformat(timespec="seconds"),
+                pid,
+            ),
+        )
+
+
+def enrich_project(p, live=False):
+    """Add filesystem/git data to a project row (non-mutating).
+
+    默认读同步时落库的 repo 快照；live=True（项目详情页）或尚无快照时
+    现场扫一次并回写。快照时效靠同步和详情页访问兜底刷新。
+    """
     p = dict(p)
-    info = scanner.get_repo_info(p["path"]) if p.get("path") else {}
+    info = None
+    if not live and p.get("repo_snapshot"):
+        try:
+            info = json.loads(p["repo_snapshot"])
+        except Exception:
+            info = None
+    if info is None:
+        info = scanner.get_repo_info(p["path"]) if p.get("path") else {}
+        if p.get("path"):
+            save_repo_snapshot(p["id"], info)
     p["live"] = info
     p["stage_label"] = db.STAGE_LABELS.get(p.get("stage"), p.get("stage"))
     p["media_count"] = media_count(p["id"])
@@ -224,13 +250,21 @@ def _make_level_fn(max_commits):
     return level
 
 
-def _day_commit_index():
-    """date(iso) -> {'projects': [names], 'commits': int}, from daily_logs."""
+def _day_commit_index(since_iso=None):
+    """date(iso) -> {'projects': [names], 'commits': int}, from daily_logs.
+
+    since_iso 限定下界：热力图/统计只关心一段窗口，别每次全表解析所有历史 JSON。
+    """
     with db.cursor() as cur:
-        cur.execute(
+        sql = (
             "SELECT dl.date AS d, p.name AS name, dl.raw_commits_json AS rcj FROM daily_logs dl "
-            "JOIN projects p ON p.id = dl.project_id ORDER BY dl.date"
+            "JOIN projects p ON p.id = dl.project_id"
         )
+        params = []
+        if since_iso:
+            sql += " WHERE dl.date >= ?"
+            params.append(since_iso)
+        cur.execute(sql + " ORDER BY dl.date", params)
         rows = cur.fetchall()
     by_date = {}
     for r in rows:
@@ -245,11 +279,12 @@ def _day_commit_index():
 
 def commit_totals():
     """Total commits across all projects for today / this week / month / year."""
-    by_date = _day_commit_index()
     today = date.today()
     week_start = today - dt.timedelta(days=today.weekday())  # Monday
     month_start = today.replace(day=1)
     year_start = today.replace(month=1, day=1)
+    # 一月初的"本周"可能跨到去年，下界取两者更早的
+    by_date = _day_commit_index(min(year_start, week_start).isoformat())
     totals = {"today": 0, "week": 0, "month": 0, "year": 0}
     for iso, entry in by_date.items():
         try:
@@ -271,10 +306,10 @@ def commit_totals():
 def build_heatmap(weeks_back=26):
     """GitHub-style contribution grid from daily_logs, shaded by commit count.
     Shade levels are scaled dynamically to the busiest day in the window."""
-    by_date = _day_commit_index()
     today = date.today()
     start = today - dt.timedelta(days=weeks_back * 7 - 1)
     start -= dt.timedelta(days=start.weekday())  # align to Monday
+    by_date = _day_commit_index(start.isoformat())
 
     # First pass: find the busiest day within the displayed window
     max_commits = 0
@@ -453,6 +488,8 @@ def project_add_from_scan():
             "VALUES (?, ?, ?, ?, 'in_progress')",
             (name, path, info.get("github_repo"), visibility),
         )
+        new_id = cur.lastrowid
+    save_repo_snapshot(new_id, info)
     return redirect(url_for("dashboard"))
 
 
@@ -475,7 +512,7 @@ def project_detail(pid):
     p = get_project(pid)
     if not p:
         abort(404)
-    enriched = enrich_project(p)
+    enriched = enrich_project(p, live=True)
     with db.cursor() as cur:
         cur.execute(
             "SELECT * FROM daily_logs WHERE project_id = ? ORDER BY date DESC", (pid,)
@@ -830,6 +867,7 @@ def sync_one_project(pid):
     unpushed_hashes = scanner.get_unpushed_hashes(p["path"])
     mem_today = scanner.memory_updated_today(p["name"], p["path"], today)
     info = scanner.get_repo_info(p["path"])
+    save_repo_snapshot(pid, info)
 
     # 顺手刷新 GitHub 可见性徽章
     if p.get("github_repo"):

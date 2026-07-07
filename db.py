@@ -24,6 +24,8 @@ CREATE TABLE IF NOT EXISTS projects (
     tracks_deployment INTEGER NOT NULL DEFAULT 0,
     excluded_from_scan INTEGER NOT NULL DEFAULT 0,
     sort_order INTEGER NOT NULL DEFAULT 0,
+    repo_snapshot TEXT,
+    repo_snapshot_at TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
 );
 
@@ -164,6 +166,9 @@ def init_db():
             cur.execute("ALTER TABLE projects ADD COLUMN starred INTEGER NOT NULL DEFAULT 0")
         if "description" not in cols:
             cur.execute("ALTER TABLE projects ADD COLUMN description TEXT")
+        if "repo_snapshot" not in cols:
+            cur.execute("ALTER TABLE projects ADD COLUMN repo_snapshot TEXT")
+            cur.execute("ALTER TABLE projects ADD COLUMN repo_snapshot_at TEXT")
         if "tracks_deployment" not in cols:
             cur.execute(
                 "ALTER TABLE projects ADD COLUMN tracks_deployment INTEGER NOT NULL DEFAULT 0"
