@@ -129,6 +129,10 @@ def get_conn():
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
+    # 后台同步线程 / launchd CLI 会和 web 请求并发读写同一个库：
+    # WAL 让读写互不阻塞，busy_timeout 避免偶发 "database is locked"
+    conn.execute("PRAGMA journal_mode = WAL")
+    conn.execute("PRAGMA busy_timeout = 5000")
     return conn
 
 
