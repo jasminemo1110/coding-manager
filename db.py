@@ -298,6 +298,50 @@ def init_db():
             )
 
 
+BACKUP_ICLOUD_DIR = os.path.expanduser(
+    "~/Library/Mobile Documents/com~apple~CloudDocs/coding-dashboard-backups"
+)
+BACKUP_LOCAL_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "backups")
+
+
+def backup_db(keep=30):
+    """备份 data.db。手动笔记/待办/摘要都只存在这一个文件里，不可再生。
+
+    优先备到 iCloud Drive（异地，防盘挂/机器丢）；iCloud 不可用时退回
+    工程目录 backups/（gitignore）。每天一份、同日覆盖，保留最近 keep 份。
+    用 sqlite3 的 backup API 而非复制文件，保证 WAL 模式下快照一致。
+    失败返回 None，不影响主流程。
+    """
+    if not os.path.exists(DB_PATH):
+        return None
+    icloud_root = os.path.expanduser("~/Library/Mobile Documents/com~apple~CloudDocs")
+    target_dir = BACKUP_ICLOUD_DIR if os.path.isdir(icloud_root) else BACKUP_LOCAL_DIR
+    try:
+        os.makedirs(target_dir, exist_ok=True)
+        target = os.path.join(
+            target_dir, f"data-{datetime.now().strftime('%Y%m%d')}.db"
+        )
+        src = sqlite3.connect(DB_PATH)
+        try:
+            dst = sqlite3.connect(target)
+            try:
+                src.backup(dst)
+            finally:
+                dst.close()
+        finally:
+            src.close()
+        old_backups = sorted(
+            f
+            for f in os.listdir(target_dir)
+            if f.startswith("data-") and f.endswith(".db")
+        )
+        for old in old_backups[:-keep]:
+            os.remove(os.path.join(target_dir, old))
+        return target
+    except Exception:
+        return None
+
+
 def get_setting(key, default=None):
     with cursor() as cur:
         cur.execute("SELECT value FROM settings WHERE key = ?", (key,))

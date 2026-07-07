@@ -31,6 +31,11 @@ def ensure_db():
     if not getattr(app, "_db_inited", False):
         db.init_db()
         app._db_inited = True
+    # 每天第一次访问时自动备份 data.db（失败则下个请求重试）
+    today = date.today().isoformat()
+    if db.get_setting("last_backup_date") != today:
+        if db.backup_db():
+            db.set_setting("last_backup_date", today)
 
 
 # ---------- Helpers ----------
