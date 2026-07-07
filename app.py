@@ -2,6 +2,7 @@
 
 import os
 import json
+import threading
 import datetime as dt
 from datetime import date, datetime
 from urllib.parse import quote
@@ -907,27 +908,82 @@ def sync_one_project(pid):
     }
 
 
+# 同步在后台线程跑（AI 摘要一天一调，串行跑完可能要几十秒，不能卡住请求）。
+# 单用户单进程，一个全局槽位足够；已有同步在跑时拒绝再次启动。
+_sync_lock = threading.Lock()
+_sync_state = {
+    "running": False,
+    "total": 0,
+    "done": 0,
+    "current": None,     # 正在同步的项目名
+    "synced": 0,         # 有新内容的项目数
+    "skipped": 0,        # 无新改动的项目数
+    "results": [],       # 每个项目 sync_one_project 的返回值
+    "started_at": None,
+    "finished_at": None,
+}
+
+
+def _run_sync(project_ids):
+    try:
+        for pid in project_ids:
+            p = get_project(pid)
+            with _sync_lock:
+                _sync_state["current"] = p["name"] if p else str(pid)
+            r = sync_one_project(pid)
+            with _sync_lock:
+                _sync_state["done"] += 1
+                _sync_state["results"].append(r)
+                if r.get("skipped"):
+                    _sync_state["skipped"] += 1
+                elif r.get("ok") and r.get("commits"):
+                    _sync_state["synced"] += 1
+    finally:
+        with _sync_lock:
+            _sync_state["running"] = False
+            _sync_state["current"] = None
+            _sync_state["finished_at"] = datetime.now().isoformat(timespec="seconds")
+
+
+def start_sync(project_ids):
+    """启动后台同步线程。已有一个在跑时返回 False。"""
+    with _sync_lock:
+        if _sync_state["running"]:
+            return False
+        _sync_state.update(
+            running=True, total=len(project_ids), done=0, current=None,
+            synced=0, skipped=0, results=[],
+            started_at=datetime.now().isoformat(timespec="seconds"),
+            finished_at=None,
+        )
+    threading.Thread(target=_run_sync, args=(project_ids,), daemon=True).start()
+    return True
+
+
 @app.route("/sync/today", methods=["POST"])
 def sync_today_all():
-    projects = all_projects()
-    results = []
-    synced = 0
-    skipped = 0
-    for p in projects:
-        if not p.get("path"):
-            continue
-        r = sync_one_project(p["id"])
-        results.append(r)
-        if r.get("skipped"):
-            skipped += 1
-        elif r.get("ok") and r.get("commits"):
-            synced += 1
-    return jsonify({"synced": synced, "skipped": skipped, "results": results})
+    ids = [p["id"] for p in all_projects() if p.get("path")]
+    if not start_sync(ids):
+        return jsonify({"ok": False, "reason": "already running"}), 409
+    return jsonify({"ok": True, "started": True, "total": len(ids)})
 
 
 @app.route("/project/<int:pid>/sync", methods=["POST"])
 def sync_today_one(pid):
-    return jsonify(sync_one_project(pid))
+    p = get_project(pid)
+    if not p or not p.get("path"):
+        return jsonify({"ok": False, "reason": "no path"})
+    if not start_sync([pid]):
+        return jsonify({"ok": False, "reason": "already running"}), 409
+    return jsonify({"ok": True, "started": True, "total": 1})
+
+
+@app.route("/sync/status")
+def sync_status():
+    with _sync_lock:
+        state = dict(_sync_state)
+        state["results"] = list(_sync_state["results"])
+    return jsonify(state)
 
 
 @app.route("/sync/history", methods=["POST"])

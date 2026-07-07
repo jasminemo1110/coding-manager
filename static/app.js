@@ -1,5 +1,26 @@
 // Frontend interactions: sync buttons, iteration checkboxes.
 
+// 同步在后台线程跑：POST 只负责启动，之后轮询 /sync/status 直到结束。
+// onTick 在每次拿到状态时被调，用来更新按钮上的进度文案。
+async function pollSync(statusUrl, onTick) {
+  for (;;) {
+    await new Promise(res => setTimeout(res, 1200));
+    const r = await fetch(statusUrl);
+    const s = await r.json();
+    if (onTick) onTick(s);
+    if (!s.running) return s;
+  }
+}
+
+async function startSync(startUrl) {
+  const r = await fetch(startUrl, { method: 'POST' });
+  const data = await r.json();
+  if (!data.ok) {
+    throw new Error(data.reason === 'already running' ? '已有同步在进行中' : (data.reason || '启动失败'));
+  }
+  return data;
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   // Global "sync today" on dashboard
   const syncAll = document.getElementById('sync-today-btn');
@@ -9,10 +30,13 @@ document.addEventListener('DOMContentLoaded', () => {
       syncAll.disabled = true;
       syncAll.textContent = '同步中…';
       try {
-        const r = await fetch(syncAll.dataset.url, { method: 'POST' });
-        const data = await r.json();
-        const msg = `${data.synced} 个项目已同步到最新，${data.skipped} 个项目无新改动`;
-        syncAll.textContent = '✓ ' + msg;
+        await startSync(syncAll.dataset.url);
+        const final = await pollSync(syncAll.dataset.statusUrl, (s) => {
+          if (s.running) {
+            syncAll.textContent = `同步中 ${s.done}/${s.total}${s.current ? '：' + s.current : ''}…`;
+          }
+        });
+        syncAll.textContent = `✓ ${final.synced} 个项目已同步到最新，${final.skipped} 个项目无新改动`;
         setTimeout(() => { window.location.reload(); }, 1200);
       } catch (e) {
         syncAll.textContent = '同步失败：' + e.message;
@@ -30,16 +54,19 @@ document.addEventListener('DOMContentLoaded', () => {
       syncOne.disabled = true;
       syncOne.textContent = '同步中…';
       try {
-        const r = await fetch(syncOne.dataset.url, { method: 'POST' });
-        const data = await r.json();
-        if (data.skipped) {
+        await startSync(syncOne.dataset.url);
+        const final = await pollSync(syncOne.dataset.statusUrl);
+        const res = (final.results || [])[0] || {};
+        if (res.skipped) {
           syncOne.textContent = '✓ 没有新改动';
           syncOne.disabled = false;
           setTimeout(() => { syncOne.textContent = originalText; }, 2200);
-        } else {
-          const dayPart = data.days > 1 ? `${data.days} 天 / ` : '';
-          syncOne.textContent = `✓ ${dayPart}${data.commits} 条 commit`;
+        } else if (res.ok) {
+          const dayPart = res.days > 1 ? `${res.days} 天 / ` : '';
+          syncOne.textContent = `✓ ${dayPart}${res.commits} 条 commit`;
           setTimeout(() => { window.location.reload(); }, 800);
+        } else {
+          throw new Error(res.reason || '未知原因');
         }
       } catch (e) {
         syncOne.textContent = '同步失败';

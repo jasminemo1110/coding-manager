@@ -16,7 +16,7 @@
     </p>
   </div>
   <div class="head-actions">
-    <button class="btn" id="project-sync-btn" data-url="{{ url_for('sync_today_one', pid=p.id) }}" title="补齐上次同步至今每一天有改动但还没生成摘要的日子">🔄 同步到最新</button>
+    <button class="btn" id="project-sync-btn" data-url="{{ url_for('sync_today_one', pid=p.id) }}" data-status-url="{{ url_for('sync_status') }}" title="补齐上次同步至今每一天有改动但还没生成摘要的日子">🔄 同步到最新</button>
     <button class="btn" id="project-history-btn" data-url="{{ url_for('sync_history_one', pid=p.id) }}">📥 导入历史</button>
     {% if p.github_repo %}
     <button class="btn" id="refresh-github-btn" data-url="{{ url_for('project_refresh_github', pid=p.id) }}" title="重新检测 GitHub 仓库的公开/私有状态">🔄 刷新 GitHub</button>
