@@ -314,8 +314,12 @@ def backup_db(keep=30):
     """
     if not os.path.exists(DB_PATH):
         return None
-    icloud_root = os.path.expanduser("~/Library/Mobile Documents/com~apple~CloudDocs")
-    target_dir = BACKUP_ICLOUD_DIR if os.path.isdir(icloud_root) else BACKUP_LOCAL_DIR
+    # iCloud 根目录（CloudDocs）存在才用 iCloud，否则退回本地目录
+    target_dir = (
+        BACKUP_ICLOUD_DIR
+        if os.path.isdir(os.path.dirname(BACKUP_ICLOUD_DIR))
+        else BACKUP_LOCAL_DIR
+    )
     try:
         os.makedirs(target_dir, exist_ok=True)
         target = os.path.join(
