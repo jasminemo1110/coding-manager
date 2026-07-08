@@ -741,14 +741,7 @@ def category_rename():
     new_name = (request.form.get("new_name") or "").strip()
     if cid and new_name:
         with db.cursor() as cur:
-            cur.execute("SELECT name FROM categories WHERE id=?", (cid,))
-            row = cur.fetchone()
-            if row:
-                old_name = row["name"]
-                cur.execute("UPDATE categories SET name=? WHERE id=?", (new_name, cid))
-                cur.execute(
-                    "UPDATE projects SET category=? WHERE category=?", (new_name, old_name)
-                )
+            cur.execute("UPDATE categories SET name=? WHERE id=?", (new_name, cid))
     return redirect(url_for("settings"))
 
 
@@ -757,11 +750,8 @@ def category_delete():
     cid = request.form.get("id")
     if cid:
         with db.cursor() as cur:
-            cur.execute("SELECT name FROM categories WHERE id=?", (cid,))
-            row = cur.fetchone()
-            if row:
-                cur.execute("UPDATE projects SET category=NULL WHERE category=?", (row["name"],))
-                cur.execute("DELETE FROM categories WHERE id=?", (cid,))
+            # project_categories 里的关联行靠外键 ON DELETE CASCADE 清掉
+            cur.execute("DELETE FROM categories WHERE id=?", (cid,))
     return redirect(url_for("settings"))
 
 
