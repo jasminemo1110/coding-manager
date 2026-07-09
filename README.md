@@ -16,7 +16,7 @@
 - **📝 笔记 & 参考资料** — 项目笔记 + 学习笔记 + 参考链接，一键导出 Markdown
 - **☑️ 待办管理** — 全局 + 项目级待办，重要项自动浮到顶部面板
 - **📣 自媒体内容** — 管理选题、发布状态与时间，关联到具体项目
-- **🕚 自动同步 & 备份** — macOS 一键安装定时任务（`bash scripts/install-launchd.sh`），每天 23:50 自动同步全部项目，并把数据库备份到 iCloud Drive（保留最近 30 份）
+- **🕚 自动同步 & 备份** — 每天定时自动同步全部项目，并把数据库备份一份（保留最近 30 份）。备份目录可在设置里指定（Dropbox / 坚果云 / 外置盘皆可），留空则 macOS 用 iCloud Drive、其它系统落本地。定时任务的安装方式见下方「定时自动同步」
 
 ---
 
@@ -61,8 +61,37 @@ python app.py
 | **AI API Key** | 生成 AI 每日摘要和项目简介（OpenAI 兼容接口，默认 DeepSeek） | 摘要功能不可用，其余正常 |
 | **GitHub Token** | 自动识别私有仓库可见性 | 私有仓库显示为「未知」 |
 | **扫描路径** | 自动发现本地 git 项目 | 需手动添加项目 |
+| **备份目录** | 每天自动备份 `data.db` 的落地位置 | 留空自动选择（macOS→iCloud，其它→本地 `backups/`） |
 
 API Key 申请：默认用 [DeepSeek](https://platform.deepseek.com)（便宜、注册简单、国内可直连）；也可在「设置」页把 Base URL 和模型改成 OpenAI、通义千问等任意 OpenAI 兼容服务商。
+
+---
+
+## 🕚 定时自动同步（可选）
+
+手动点「同步到最新」随时可用；如果希望每天自动跑一次（拉取当天 commit + AI 摘要 + 备份数据库），按你的系统装一个定时任务，让它定时执行 `sync_cli.py`：
+
+**macOS（一键脚本，用 launchd）**
+
+```bash
+bash scripts/install-launchd.sh   # 每天 23:50 自动同步 + 备份
+```
+
+日志写在 `~/Library/Logs/coding-dashboard-sync.log`。卸载：`launchctl unload ~/Library/LaunchAgents/com.coding-dashboard.sync.plist`。
+
+**Linux（cron）**
+
+`crontab -e` 加一行（把路径换成你的仓库位置）：
+
+```cron
+50 23 * * * cd /path/to/coding-manager && .venv/bin/python sync_cli.py >> /tmp/coding-dashboard-sync.log 2>&1
+```
+
+**Windows（任务计划程序）**
+
+新建「基本任务」，每天触发，操作设为运行 `.venv\Scripts\python.exe`，参数 `sync_cli.py`，起始位置填仓库目录。
+
+> `sync_cli.py` 本身跨平台，不依赖网页服务是否在跑；上面三种只是各系统触发它的方式不同。
 
 ---
 
