@@ -1534,6 +1534,7 @@ def settings():
             db.set_setting("ai_api_key", "")
         db.set_setting("ai_base_url", request.form.get("ai_base_url", "").strip())
         db.set_setting("ai_model", request.form.get("ai_model", "").strip())
+        db.set_setting("backup_dir", request.form.get("backup_dir", "").strip())
         gh = request.form.get("github_token", "").strip()
         if gh:
             db.set_setting("github_token", gh)
@@ -1543,6 +1544,8 @@ def settings():
     ai_base_url = db.get_setting("ai_base_url", "") or "https://api.deepseek.com"
     ai_model = db.get_setting("ai_model", "") or "deepseek-chat"
     gh = db.get_setting("github_token", "")
+    backup_dir = db.get_setting("backup_dir", "")
+    backup_dir_active = db.resolve_backup_dir()
     with db.cursor() as cur:
         cur.execute("SELECT * FROM projects WHERE excluded_from_scan = 1 ORDER BY name")
         excluded = [dict(r) for r in cur.fetchall()]
@@ -1555,6 +1558,8 @@ def settings():
         ai_base_url=ai_base_url,
         ai_model=ai_model,
         github_token_set=bool(gh),
+        backup_dir=backup_dir,
+        backup_dir_active=backup_dir_active,
         excluded=excluded,
         categories=categories,
     )

@@ -304,22 +304,33 @@ BACKUP_ICLOUD_DIR = os.path.expanduser(
 BACKUP_LOCAL_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "backups")
 
 
+def resolve_backup_dir():
+    """决定备份落到哪个目录（跨平台）：
+
+    1. 设置里显式填了 backup_dir → 用它（可指向任意云盘/外置盘，任意平台通用）
+    2. 否则 macOS 且 iCloud Drive 可用 → iCloud（异地，防盘挂/机器丢）
+    3. 否则 → 工程目录 backups/（gitignore）
+
+    这样 Mac 用户开箱即用 iCloud，非 Mac 用户默认落本地、也能自己指云盘。
+    """
+    configured = (get_setting("backup_dir") or "").strip()
+    if configured:
+        return os.path.expanduser(configured)
+    if os.path.isdir(os.path.dirname(BACKUP_ICLOUD_DIR)):  # iCloud 根存在 = macOS 开了 iCloud
+        return BACKUP_ICLOUD_DIR
+    return BACKUP_LOCAL_DIR
+
+
 def backup_db(keep=30):
     """备份 data.db。手动笔记/待办/摘要都只存在这一个文件里，不可再生。
 
-    优先备到 iCloud Drive（异地，防盘挂/机器丢）；iCloud 不可用时退回
-    工程目录 backups/（gitignore）。每天一份、同日覆盖，保留最近 keep 份。
-    用 sqlite3 的 backup API 而非复制文件，保证 WAL 模式下快照一致。
-    失败返回 None，不影响主流程。
+    目录由 resolve_backup_dir() 决定（设置优先 → iCloud → 本地）。
+    每天一份、同日覆盖，保留最近 keep 份。用 sqlite3 的 backup API
+    而非复制文件，保证 WAL 模式下快照一致。失败返回 None，不影响主流程。
     """
     if not os.path.exists(DB_PATH):
         return None
-    # iCloud 根目录（CloudDocs）存在才用 iCloud，否则退回本地目录
-    target_dir = (
-        BACKUP_ICLOUD_DIR
-        if os.path.isdir(os.path.dirname(BACKUP_ICLOUD_DIR))
-        else BACKUP_LOCAL_DIR
-    )
+    target_dir = resolve_backup_dir()
     try:
         os.makedirs(target_dir, exist_ok=True)
         target = os.path.join(

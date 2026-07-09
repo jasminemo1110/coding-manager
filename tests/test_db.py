@@ -44,3 +44,20 @@ def test_backup_falls_back_to_local(test_db, tmp_path, monkeypatch):
     monkeypatch.setattr(test_db, "BACKUP_LOCAL_DIR", str(tmp_path / "local-backups"))
     target = test_db.backup_db()
     assert target and target.startswith(str(tmp_path / "local-backups"))
+
+
+def test_configured_backup_dir_wins(test_db, tmp_path, monkeypatch):
+    # 显式设置的备份目录优先于 iCloud 自动检测
+    monkeypatch.setattr(test_db, "BACKUP_ICLOUD_DIR", str(tmp_path / "icloud" / "backups"))
+    (tmp_path / "icloud").mkdir()  # 让 iCloud 分支"可用"，验证设置确实压过它
+    custom = tmp_path / "my-cloud"
+    test_db.set_setting("backup_dir", str(custom))
+    assert test_db.resolve_backup_dir() == str(custom)
+    target = test_db.backup_db()
+    assert target and target.startswith(str(custom))
+
+
+def test_configured_backup_dir_expands_user(test_db, monkeypatch):
+    # ~ 会被展开
+    test_db.set_setting("backup_dir", "~/some-backup-dir")
+    assert test_db.resolve_backup_dir() == os.path.expanduser("~/some-backup-dir")

@@ -35,6 +35,13 @@
     {% if github_token_set %}<p class="muted small">✓ 已设置</p>{% endif %}
   </section>
 
+  <section>
+    <h2>备份目录（可选）</h2>
+    <p class="muted small">每天自动把 <code>data.db</code> 备份一份到这里（保留最近 30 份）。留空则自动选择：macOS 用 iCloud Drive，其它系统用工程目录下的 <code>backups/</code>。想备到 Dropbox / 坚果云 / 外置盘就填它们的路径。<br>
+      当前实际备份到：<code>{{ backup_dir_active }}</code></p>
+    <label class="check"><input type="text" name="backup_dir" value="{{ backup_dir }}" placeholder="留空自动选择；可填 ~/Dropbox/coding-backups 之类" style="width:100%"></label>
+  </section>
+
   <div class="dialog-actions">
     <button type="submit" class="btn btn-primary">保存设置</button>
   </div>
