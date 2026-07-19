@@ -35,6 +35,7 @@ CREATE TABLE IF NOT EXISTS project_todos (
     text TEXT NOT NULL,
     done INTEGER NOT NULL DEFAULT 0,
     important INTEGER NOT NULL DEFAULT 0,
+    done_at TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
     FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
 );
@@ -226,6 +227,16 @@ def init_db():
             )
             cur.execute("DROP TABLE project_todos")
             cur.execute("ALTER TABLE project_todos_new RENAME TO project_todos")
+        # project_todos: done_at（完成日期）—— 支撑「完成的待办第二天归档进历史回收站」
+        cur.execute("PRAGMA table_info(project_todos)")
+        pt_cols = {row["name"] for row in cur.fetchall()}
+        if "done_at" not in pt_cols:
+            cur.execute("ALTER TABLE project_todos ADD COLUMN done_at TEXT")
+            # 存量已完成的待办直接归档：done_at 回填为其创建日期（早于今天 => 立即进回收站）
+            cur.execute(
+                "UPDATE project_todos SET done_at = date(created_at) "
+                "WHERE done = 1 AND done_at IS NULL"
+            )
         cur.execute("SELECT value FROM settings WHERE key = 'scan_paths'")
         row = cur.fetchone()
         if not row:

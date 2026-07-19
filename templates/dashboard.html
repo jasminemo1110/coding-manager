@@ -13,7 +13,10 @@
 
 <div class="top-row">
   <section class="todos">
-    <h2>待办</h2>
+    <div class="todos-head">
+      <h2>待办</h2>
+      <a class="history-link muted small" href="{{ url_for('todos_history') }}">历史 →</a>
+    </div>
     <form method="post" action="{{ url_for('global_todo_add') }}" class="manual-todo-form">
       <input type="hidden" name="redirect_to" value="{{ url_for('dashboard', stage=stage_filter_str, category=category_filter_str, sort=sort_by) }}">
       <input type="text" name="text" placeholder="手动补充，回车添加…" required>

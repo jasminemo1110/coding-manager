@@ -61,6 +61,9 @@
 <section class="project-todos">
   <div class="section-head">
     <h2>待办 <span class="muted small">· 准备做但还没做的事</span></h2>
+    {% if archived_todo_count %}
+    <a class="history-link muted small" href="{{ url_for('todos_history') }}">已完成 {{ archived_todo_count }} 条 →</a>
+    {% endif %}
   </div>
   <form method="post" action="{{ url_for('project_todo_add', pid=p.id) }}" class="todo-add">
     <input type="text" name="text" placeholder="加一条待办，回车提交…" required>

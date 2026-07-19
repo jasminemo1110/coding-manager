@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}待办历史 — Coding Manager{% endblock %}
+{% block content %}
+
+<div class="page-head">
+  <div>
+    <a class="back" href="{{ url_for('dashboard') }}">← 返回看板</a>
+    <h1>待办历史 <span class="muted small">· 已完成并归档的待办</span></h1>
+  </div>
+</div>
+
+{% if total == 0 %}
+  <p class="muted">还没有归档的待办。完成的待办会在第二天自动挪到这里，便于历史查阅。</p>
+{% else %}
+  {% for g in groups %}
+  <section class="history-group">
+    <h2 class="history-group-head">
+      {% if g.project_id %}
+        <a href="{{ url_for('project_detail', pid=g.project_id) }}">{{ g.project_name }}</a>
+      {% else %}
+        {{ g.project_name }}
+      {% endif %}
+      <span class="muted small">· {{ g.todos|length }} 条</span>
+    </h2>
+    <ul class="history-todo-list">
+      {% for t in g.todos %}
+      <li class="history-todo-row">
+        <span class="history-todo-date muted small">{{ t.done_at }}</span>
+        <span class="history-todo-text">{{ t.text }}</span>
+        <span class="history-todo-actions">
+          <form method="post" action="{{ url_for('project_todo_restore', tid=t.id) }}" class="inline-form">
+            <input type="hidden" name="redirect_to" value="{{ url_for('todos_history') }}">
+            <button class="btn-sm" title="还原为未完成待办">↩ 还原</button>
+          </form>
+          <form method="post" action="{{ url_for('project_todo_delete', tid=t.id) }}" class="inline-delete"
+                onsubmit="return confirm('彻底删除这条待办？不可恢复。');">
+            <input type="hidden" name="redirect_to" value="{{ url_for('todos_history') }}">
+            <button class="btn-sm danger" title="彻底删除">×</button>
+          </form>
+        </span>
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endfor %}
+{% endif %}
+
+{% endblock %}

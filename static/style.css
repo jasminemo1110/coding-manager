@@ -258,6 +258,10 @@ code { font-family: 'JetBrains Mono', SFMono-Regular, Menlo, monospace; font-siz
   margin-bottom: 1.5rem;
 }
 .todos h2 { margin: 0 0 0.5rem; font-size: 0.95rem; font-family: inherit; color: var(--amber); }
+.todos-head { display: flex; align-items: baseline; justify-content: space-between; gap: 0.6rem; }
+.todos-head h2 { margin: 0 0 0.5rem; }
+.history-link { white-space: nowrap; text-decoration: none; }
+.history-link:hover { text-decoration: underline; }
 .todos ul { margin: 0; padding: 0; list-style: none; }
 .todos li { font-size: 0.9rem; }
 .todo-link {
@@ -1334,6 +1338,28 @@ textarea.autosize {
 /* inline forms */
 .inline { display: inline-block; }
 .inline-delete { display: inline-block; }
+.inline-form { display: inline-block; }
+
+/* 待办历史（回收站） */
+.history-group { margin-bottom: 1.8rem; }
+.history-group-head {
+  display: flex; align-items: baseline; gap: 0.5rem;
+  margin: 0 0 0.6rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid var(--line);
+}
+.history-group-head a { text-decoration: none; }
+.history-group-head a:hover { text-decoration: underline; }
+.history-todo-list { list-style: none; margin: 0; padding: 0; }
+.history-todo-row {
+  display: flex; align-items: baseline; gap: 0.7rem;
+  padding: 0.4rem 0.3rem;
+  border-bottom: 1px solid var(--line-soft, #efe9dd);
+}
+.history-todo-row:last-child { border-bottom: none; }
+.history-todo-date { flex-shrink: 0; width: 5.5rem; font-variant-numeric: tabular-nums; }
+.history-todo-text { flex: 1; min-width: 0; color: var(--ink-soft); }
+.history-todo-actions { flex-shrink: 0; display: flex; gap: 0.35rem; align-items: center; }
 
 details > form { margin-top: 0.4rem; display: flex; flex-direction: column; gap: 0.4rem; }
 details > form input, details > form textarea {

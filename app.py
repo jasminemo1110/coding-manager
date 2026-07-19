@@ -221,13 +221,16 @@ def build_todos(projects):
 
 def panel_todos():
     """Checkable todos for the dashboard top panel:
-    global manual todos (project_id IS NULL) + important project todos."""
+    global manual todos (project_id IS NULL) + important project todos.
+    已归档（完成于更早某天）的不再列出——它们进了历史回收站。"""
     with db.cursor() as cur:
         cur.execute(
             "SELECT pt.*, p.name AS project_name FROM project_todos pt "
             "LEFT JOIN projects p ON p.id = pt.project_id "
-            "WHERE pt.project_id IS NULL OR pt.important = 1 "
-            "ORDER BY pt.done, pt.important DESC, pt.id DESC"
+            "WHERE (pt.project_id IS NULL OR pt.important = 1) "
+            "AND NOT (pt.done = 1 AND pt.done_at IS NOT NULL AND pt.done_at < ?) "
+            "ORDER BY pt.done, pt.important DESC, pt.id DESC",
+            (date.today().isoformat(),),
         )
         return [dict(r) for r in cur.fetchall()]
 
@@ -542,11 +545,20 @@ def project_detail(pid):
             "SELECT * FROM media_items WHERE project_id = ? ORDER BY id DESC", (pid,)
         )
         media = [dict(r) for r in cur.fetchall()]
+        today = date.today().isoformat()
         cur.execute(
-            "SELECT * FROM project_todos WHERE project_id = ? ORDER BY done, important DESC, id DESC",
-            (pid,),
+            "SELECT * FROM project_todos WHERE project_id = ? "
+            "AND NOT (done = 1 AND done_at IS NOT NULL AND done_at < ?) "
+            "ORDER BY done, important DESC, id DESC",
+            (pid, today),
         )
         todos = [dict(r) for r in cur.fetchall()]
+        cur.execute(
+            "SELECT COUNT(*) AS c FROM project_todos WHERE project_id = ? "
+            "AND done = 1 AND done_at IS NOT NULL AND done_at < ?",
+            (pid, today),
+        )
+        archived_todo_count = cur.fetchone()["c"]
     # link notes <-> daily logs both ways
     log_date_by_id = {log["id"]: log["date"] for log in logs}
     notes_by_log = {}
@@ -564,6 +576,7 @@ def project_detail(pid):
         notes=notes,
         media=media,
         todos=todos,
+        archived_todo_count=archived_todo_count,
         unpushed_commits=unpushed_commits,
         stage_labels=db.STAGE_LABELS,
         stage_order=db.STAGE_ORDER,
@@ -588,10 +601,22 @@ def project_todo_add(pid):
 @app.route("/todo/<int:tid>/toggle", methods=["POST"])
 def project_todo_toggle(tid):
     with db.cursor() as cur:
-        cur.execute("UPDATE project_todos SET done = 1 - done WHERE id = ?", (tid,))
         cur.execute("SELECT done FROM project_todos WHERE id = ?", (tid,))
         row = cur.fetchone()
-    return jsonify({"ok": True, "done": row["done"] if row else 0})
+        if not row:
+            return jsonify({"ok": False})
+        new_done = 0 if row["done"] else 1
+        if new_done:
+            # 记完成日期：当天仍留在原地，第二天才归档进历史回收站
+            cur.execute(
+                "UPDATE project_todos SET done = 1, done_at = ? WHERE id = ?",
+                (date.today().isoformat(), tid),
+            )
+        else:
+            cur.execute(
+                "UPDATE project_todos SET done = 0, done_at = NULL WHERE id = ?", (tid,)
+            )
+    return jsonify({"ok": True, "done": new_done})
 
 
 @app.route("/todo/<int:tid>/edit", methods=["POST"])
@@ -620,6 +645,47 @@ def project_todo_important(tid):
         cur.execute("SELECT important FROM project_todos WHERE id = ?", (tid,))
         row = cur.fetchone()
     return jsonify({"ok": True, "important": row["important"] if row else 0})
+
+
+@app.route("/todo/<int:tid>/restore", methods=["POST"])
+def project_todo_restore(tid):
+    """把归档的待办还原回未完成状态，重新回到活动清单。"""
+    with db.cursor() as cur:
+        cur.execute(
+            "UPDATE project_todos SET done = 0, done_at = NULL WHERE id = ?", (tid,)
+        )
+    return redirect(request.form.get("redirect_to") or url_for("todos_history"))
+
+
+@app.route("/todos/history")
+def todos_history():
+    """历史回收站：完成于更早某天的待办，按项目分组（无项目=全局，沉底）。"""
+    today = date.today().isoformat()
+    with db.cursor() as cur:
+        cur.execute(
+            "SELECT pt.*, p.name AS project_name FROM project_todos pt "
+            "LEFT JOIN projects p ON p.id = pt.project_id "
+            "WHERE pt.done = 1 AND pt.done_at IS NOT NULL AND pt.done_at < ? "
+            "ORDER BY pt.done_at DESC, pt.id DESC",
+            (today,),
+        )
+        rows = [dict(r) for r in cur.fetchall()]
+    groups = {}
+    for r in rows:
+        g = groups.setdefault(
+            r["project_id"],
+            {
+                "project_id": r["project_id"],
+                "project_name": r["project_name"] or "全局 · 无项目",
+                "todos": [],
+            },
+        )
+        g["todos"].append(r)
+    ordered = sorted(
+        groups.values(),
+        key=lambda g: (g["project_id"] is None, g["project_name"] or ""),
+    )
+    return render_template("todos_history.html", groups=ordered, total=len(rows))
 
 
 @app.route("/project/<int:pid>/update", methods=["POST"])
