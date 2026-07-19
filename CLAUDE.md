@@ -74,8 +74,10 @@ media_items     -- id, project_id, type, title, status, link, notes, starred, pu
 notes           -- id, project_id (NULL=学习笔记/全局), title, body, tags, linked_daily_log_id
                 -- 学习页只展示 project_id IS NULL 的；项目笔记留在项目页
 
-reference_items -- id, title, body, links (JSON: [{name, url}, ...])
+reference_items -- id, title, body, links (JSON: [{name, url}, ...]), starred
                 -- 参考资料，每条带任意条命名链接
+                -- starred: 加星置顶，学习页按 starred DESC, id DESC 排；加星项橘黄框高亮（.ref-card.starred）
+                -- 星标切换 POST /reference/<id>/star（同项目/自媒体的 starred 模式），前端加星后无刷新重排
 
 settings        -- key, value（含 scan_paths, anthropic_api_key, github_token,
                 -- iterations_migrated 这类幂等标记）
