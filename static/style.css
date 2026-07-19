@@ -1054,7 +1054,25 @@ textarea.autosize {
   padding: 0.75rem 0.95rem;
   margin-bottom: 0.55rem;
 }
-.ref-card-head { margin-bottom: 0.2rem; }
+.ref-card.starred {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+  background: var(--accent-soft);
+}
+.ref-card-head { margin-bottom: 0.2rem; display: flex; align-items: baseline; gap: 0.4rem; }
+.ref-star {
+  flex-shrink: 0;
+  font-size: 1rem;
+  line-height: 1;
+  background: transparent;
+  border: none;
+  color: var(--line-strong);
+  cursor: pointer;
+  padding: 0;
+  transition: color 0.12s, transform 0.12s;
+}
+.ref-star:hover { transform: scale(1.2); }
+.ref-star.on { color: var(--accent); }
 .ref-links { list-style: none; padding: 0; margin: 0.4rem 0 0; }
 .ref-links li { padding: 0.1rem 0; font-size: 0.88rem; }
 .ref-form { display: flex; flex-direction: column; gap: 0.4rem; margin-top: 0.4rem; }

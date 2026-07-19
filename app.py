@@ -1253,11 +1253,11 @@ def notes_list():
             like = f"%{q}%"
             cur.execute(
                 "SELECT * FROM reference_items WHERE title LIKE ? OR body LIKE ? OR links LIKE ? "
-                "ORDER BY id DESC",
+                "ORDER BY starred DESC, id DESC",
                 (like, like, like),
             )
         else:
-            cur.execute("SELECT * FROM reference_items ORDER BY id DESC")
+            cur.execute("SELECT * FROM reference_items ORDER BY starred DESC, id DESC")
         references = [dict(r) for r in cur.fetchall()]
     for r in references:
         try:
@@ -1310,6 +1310,15 @@ def reference_delete(rid):
     with db.cursor() as cur:
         cur.execute("DELETE FROM reference_items WHERE id=?", (rid,))
     return redirect(url_for("notes_list"))
+
+
+@app.route("/reference/<int:rid>/star", methods=["POST"])
+def reference_star_toggle(rid):
+    with db.cursor() as cur:
+        cur.execute("UPDATE reference_items SET starred = 1 - starred WHERE id = ?", (rid,))
+        cur.execute("SELECT starred FROM reference_items WHERE id = ?", (rid,))
+        row = cur.fetchone()
+    return jsonify({"ok": True, "starred": row["starred"] if row else 0})
 
 
 @app.route("/note/new", methods=["POST"])

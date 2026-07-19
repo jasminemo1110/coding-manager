@@ -60,8 +60,13 @@
     {% if not references %}<p class="muted small">还没有参考资料。可以记一段文字，或贴一条链接。</p>{% endif %}
     <ul class="ref-list">
       {% for r in references %}
-      <li class="ref-card">
-        <div class="ref-card-head"><strong>{{ r.title }}</strong></div>
+      <li class="ref-card {% if r.starred %}starred{% endif %}" data-ref-id="{{ r.id }}">
+        <div class="ref-card-head">
+          <button type="button" class="ref-star {% if r.starred %}on{% endif %}"
+                  data-url="{{ url_for('reference_star_toggle', rid=r.id) }}"
+                  title="标为重要 · 置顶" aria-label="标为重要">★</button>
+          <strong>{{ r.title }}</strong>
+        </div>
         {% if r.body %}<div class="note-body">{{ r.body }}</div>{% endif %}
         {% if r.link_list %}
         <ul class="ref-links">

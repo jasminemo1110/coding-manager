@@ -101,6 +101,7 @@ CREATE TABLE IF NOT EXISTS reference_items (
     title TEXT NOT NULL,
     body TEXT,
     links TEXT,
+    starred INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
 );
 
@@ -208,6 +209,13 @@ def init_db():
         if "starred" not in mi_cols:
             cur.execute(
                 "ALTER TABLE media_items ADD COLUMN starred INTEGER NOT NULL DEFAULT 0"
+            )
+        # reference_items: starred（加星置顶）
+        cur.execute("PRAGMA table_info(reference_items)")
+        ri_cols = {row["name"] for row in cur.fetchall()}
+        if "starred" not in ri_cols:
+            cur.execute(
+                "ALTER TABLE reference_items ADD COLUMN starred INTEGER NOT NULL DEFAULT 0"
             )
         if "publish_date" not in mi_cols:
             cur.execute(
