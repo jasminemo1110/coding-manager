@@ -202,19 +202,19 @@ def build_todos(projects):
                 "text": f"{live['unpushed_count']} 个 commit 未推 GitHub",
             })
         log = p.get("latest_log")
-        if log:
+        if log and not log.get("checklist_reminder_ignored"):
             fields = log_active_fields(log)
             unchecked = [CHECK_LABELS[f] for f in fields if not log.get(f)]
             if unchecked:
-                if len(unchecked) == len(fields):
-                    detail = "全部尚未勾选"
-                else:
-                    detail = "、".join(unchecked) + " 尚未勾选"
+                # 首页只报「最新那天有未完成项」，具体是哪几项留到悬停 tooltip 里
                 todos.append({
                     "project_id": p["id"],
                     "project_name": p["name"],
                     "kind": "checklist_pending",
-                    "text": f"{log['date']} 的清单：{detail}",
+                    "log_id": log["id"],
+                    "date": log["date"],
+                    "unchecked_labels": unchecked,
+                    "text": f"{log['date']} 有未完成清单项",
                 })
     return todos
 
@@ -655,6 +655,16 @@ def project_todo_restore(tid):
             "UPDATE project_todos SET done = 0, done_at = NULL WHERE id = ?", (tid,)
         )
     return redirect(request.form.get("redirect_to") or url_for("todos_history"))
+
+
+@app.route("/log/<int:log_id>/ignore-checklist", methods=["POST"])
+def log_ignore_checklist(log_id):
+    """把某天日志的清单提醒从首页静音——只影响首页那一条，不动清单本身。"""
+    with db.cursor() as cur:
+        cur.execute(
+            "UPDATE daily_logs SET checklist_reminder_ignored = 1 WHERE id = ?", (log_id,)
+        )
+    return jsonify({"ok": True})
 
 
 @app.route("/todos/history")

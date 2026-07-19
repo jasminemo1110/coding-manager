@@ -41,12 +41,25 @@
     {% if todos %}
     <ul class="checklist-status-list">
       {% for t in todos %}
+        {% if t.kind == 'checklist_pending' %}
+        <li class="checklist-reminder">
+          <a class="todo-link" href="{{ url_for('project_detail', pid=t.project_id) }}">
+            <strong>{{ t.project_name }}</strong>
+            <span class="todo-kind todo-checklist_pending">· {{ t.date }} 有未完成清单项</span>
+          </a>
+          <span class="reminder-tip" role="tooltip">未更新：{{ t.unchecked_labels|join('、') }}</span>
+          <button type="button" class="reminder-ignore"
+                  data-ignore-url="{{ url_for('log_ignore_checklist', log_id=t.log_id) }}"
+                  title="忽略这条提醒（项目页清单不受影响）" aria-label="忽略这条提醒">×</button>
+        </li>
+        {% else %}
         <li>
           <a class="todo-link" href="{{ url_for('project_detail', pid=t.project_id) }}">
             <strong>{{ t.project_name }}</strong>
             <span class="todo-kind todo-{{ t.kind }}">{{ t.text }}</span>
           </a>
         </li>
+        {% endif %}
       {% endfor %}
     </ul>
     {% endif %}

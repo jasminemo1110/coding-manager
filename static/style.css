@@ -308,6 +308,48 @@ code { font-family: 'JetBrains Mono', SFMono-Regular, Menlo, monospace; font-siz
 }
 .checklist-status-list { border-top: 1px solid #ECDCB5; padding-top: 0.5rem !important; }
 
+/* 首页清单提醒：只报「有未完成项」，具体项悬停显示，× 可忽略 */
+.checklist-reminder {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+.checklist-reminder .todo-link { flex: 1; min-width: 0; }
+.reminder-ignore {
+  flex-shrink: 0;
+  border: none;
+  background: none;
+  color: var(--muted);
+  font-size: 1.1rem;
+  line-height: 1;
+  padding: 0.1rem 0.35rem;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.12s, background 0.12s, color 0.12s;
+}
+.checklist-reminder:hover .reminder-ignore { opacity: 1; }
+.reminder-ignore:hover { background: rgba(201,100,66,0.12); color: var(--danger); }
+.reminder-tip {
+  position: absolute;
+  left: 0.5rem;
+  top: calc(100% - 0.1rem);
+  z-index: 40;
+  display: none;
+  max-width: 22rem;
+  padding: 0.4rem 0.65rem;
+  background: var(--ink);
+  color: var(--paper);
+  font-size: 0.78rem;
+  line-height: 1.4;
+  border-radius: var(--radius-sm);
+  box-shadow: 0 4px 14px rgba(0,0,0,0.18);
+  white-space: normal;
+  pointer-events: none;
+}
+.checklist-reminder:hover .reminder-tip { display: block; }
+
 /* suggestions */
 .suggestions {
   background: var(--paper);

@@ -52,6 +52,7 @@ CREATE TABLE IF NOT EXISTS daily_logs (
     pushed_to_github INTEGER NOT NULL DEFAULT 0,
     deployed INTEGER NOT NULL DEFAULT 0,
     disabled_checks TEXT NOT NULL DEFAULT '',
+    checklist_reminder_ignored INTEGER NOT NULL DEFAULT 0,
     UNIQUE(project_id, date),
     FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
 );
@@ -195,6 +196,11 @@ def init_db():
             cur.execute(
                 "UPDATE daily_logs SET disabled_checks = 'deployed' "
                 "WHERE project_id IN (SELECT id FROM projects WHERE tracks_deployment = 0)"
+            )
+        if "checklist_reminder_ignored" not in dl_cols:
+            # 首页清单提醒的「忽略」标记，只静音首页那一条，不动项目页清单本身
+            cur.execute(
+                "ALTER TABLE daily_logs ADD COLUMN checklist_reminder_ignored INTEGER NOT NULL DEFAULT 0"
             )
         # media_items: starred
         cur.execute("PRAGMA table_info(media_items)")

@@ -110,3 +110,61 @@ def test_migration_backfills_done_at(test_db):
         rows = {r["text"]: r["done_at"] for r in cur.fetchall()}
     assert rows["老的已完成"] == "2020-01-01"   # 早于今天 => 立即归档
     assert rows["老的未完成"] is None
+
+
+# ---------- 首页清单提醒：只报最新那天、悬停看明细、可忽略 ----------
+
+def _proj_with_log(pid=1, name="P", unpushed=0, log=None):
+    return {"id": pid, "name": name, "live": {"unpushed_count": unpushed}, "latest_log": log}
+
+
+def _log(log_id=1, date_="2026-07-19", disabled_checks="", ignored=0, **checks):
+    row = {
+        "id": log_id, "date": date_, "disabled_checks": disabled_checks,
+        "checklist_reminder_ignored": ignored,
+        "claudemd_updated": 0, "memory_updated": 0,
+        "pushed_to_github": 0, "deployed": 0,
+    }
+    row.update(checks)
+    return row
+
+
+def test_reminder_hides_specifics_keeps_date_and_tooltip(test_db):
+    # deployed 被 disabled；claudemd 已勾；剩 memory、GitHub 未勾
+    log = _log(log_id=7, date_="2026-07-19", disabled_checks="deployed", claudemd_updated=1)
+    checklist = [t for t in app.build_todos([_proj_with_log(log=log)])
+                 if t["kind"] == "checklist_pending"]
+    assert len(checklist) == 1
+    t = checklist[0]
+    assert t["date"] == "2026-07-19"
+    assert "memory" not in t["text"] and "CLAUDE" not in t["text"]  # 首页不铺明细
+    assert t["log_id"] == 7
+    assert set(t["unchecked_labels"]) == {"memory", "GitHub"}       # 明细留给 tooltip
+
+
+def test_reminder_omitted_when_ignored(test_db):
+    log = _log(ignored=1, memory_updated=0)  # 有未勾项但已忽略
+    todos = app.build_todos([_proj_with_log(log=log)])
+    assert not [t for t in todos if t["kind"] == "checklist_pending"]
+
+
+def test_reminder_omitted_when_nothing_unchecked(test_db):
+    log = _log(disabled_checks="deployed", claudemd_updated=1,
+               memory_updated=1, pushed_to_github=1)
+    todos = app.build_todos([_proj_with_log(log=log)])
+    assert not [t for t in todos if t["kind"] == "checklist_pending"]
+
+
+def test_ignore_route_sets_flag(test_db):
+    pid = add_project(test_db, "P")
+    with test_db.cursor() as cur:
+        cur.execute(
+            "INSERT INTO daily_logs (project_id, date, memory_updated) "
+            "VALUES (?, '2026-07-19', 0)",
+            (pid,),
+        )
+        log_id = cur.lastrowid
+    assert app.app.test_client().post(f"/log/{log_id}/ignore-checklist").get_json()["ok"]
+    with test_db.cursor() as cur:
+        cur.execute("SELECT checklist_reminder_ignored FROM daily_logs WHERE id = ?", (log_id,))
+        assert cur.fetchone()["checklist_reminder_ignored"] == 1

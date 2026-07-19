@@ -194,6 +194,20 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
+  // 首页清单提醒的「忽略」：静音这一条，移除该行
+  document.querySelectorAll('.reminder-ignore[data-ignore-url]').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      const row = btn.closest('.checklist-reminder');
+      try {
+        const r = await fetch(btn.dataset.ignoreUrl, { method: 'POST' });
+        const data = await r.json();
+        if (data.ok && row) row.remove();
+      } catch (e) { /* ignore */ }
+    });
+  });
+
   // Todo inline text edit (✎)
   document.querySelectorAll('.todo-edit-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
