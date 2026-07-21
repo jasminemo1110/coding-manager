@@ -42,6 +42,13 @@
     <label class="check"><input type="text" name="backup_dir" value="{{ backup_dir }}" placeholder="留空自动选择；可填 ~/Dropbox/coding-backups 之类" style="width:100%"></label>
   </section>
 
+  <section>
+    <h2>Obsidian 归档目录（可选）</h2>
+    <p class="muted small">填了之后，每次同步都会把当天有更新的每日日志（AI 摘要 + 手动补充 + 当天关联笔记）写成 Markdown，存到这个 vault 下的 <code>coding-dashboard/&lt;项目名&gt;/&lt;日期&gt;.md</code>，方便直接在 Obsidian 里检索。覆盖式：手动补充或重生成摘要后会即时重写当天文件。<br>
+      填的应是 Obsidian vault 的根目录（含 <code>.obsidian/</code> 那个）。<strong>首次填入或改动路径时，会把已有的历史日志一次性全部补写过去。</strong>留空则不归档。</p>
+    <label class="check"><input type="text" name="obsidian_vault_dir" value="{{ obsidian_vault_dir }}" placeholder="留空则不归档；例如 ~/Documents/ObsidianVault" style="width:100%"></label>
+  </section>
+
   <div class="dialog-actions">
     <button type="submit" class="btn btn-primary">保存设置</button>
   </div>

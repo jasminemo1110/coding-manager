@@ -21,6 +21,7 @@ from flask import (
 import db
 import scanner
 import ai
+import obsidian
 
 app = Flask(__name__)
 app.secret_key = "coding-dashboard-local"
@@ -925,6 +926,8 @@ def sync_project_day(p, day_iso, today, unpushed_hashes, mem_today, info, ai_cfg
                 auto_claudemd, auto_memory, auto_pushed, disabled,
             ),
         )
+    # 落一份 Markdown 到 Obsidian vault（没配路径则内部跳过）
+    obsidian.write_day(pid, day_iso)
     return len(commits), True
 
 
@@ -1118,6 +1121,7 @@ def log_regen_summary(log_id):
     summary = ai.summarize(p["name"], commits, diff, cfg=ai_cfg)
     with db.cursor() as cur:
         cur.execute("UPDATE daily_logs SET auto_summary=? WHERE id=?", (summary, log_id))
+    obsidian.write_for_log(log_id)  # 重生成的摘要要覆盖进当天存档
     return jsonify({"ok": True, "summary": summary})
 
 
@@ -1126,6 +1130,7 @@ def update_log_notes(log_id):
     notes = request.form.get("manual_notes", "")
     with db.cursor() as cur:
         cur.execute("UPDATE daily_logs SET manual_notes=? WHERE id=?", (notes, log_id))
+    obsidian.write_for_log(log_id)  # 手动补充要覆盖进当天存档
     pid = request.form.get("project_id")
     return redirect(url_for("project_detail", pid=pid))
 
@@ -1335,6 +1340,8 @@ def note_new():
             "INSERT INTO notes (project_id, title, body, tags, linked_daily_log_id) VALUES (?, ?, ?, ?, ?)",
             (project_id, title, body, tags, linked_log),
         )
+    if linked_log:  # 关联到某天的笔记要进当天存档的「当天笔记」
+        obsidian.write_for_log(linked_log)
     redirect_to = request.form.get("redirect_to") or url_for("notes_list")
     return redirect(redirect_to)
 
@@ -1349,6 +1356,10 @@ def note_edit(nid):
             "UPDATE notes SET title=?, body=?, tags=?, updated_at=datetime('now','localtime') WHERE id=?",
             (title, body, tags, nid),
         )
+        cur.execute("SELECT linked_daily_log_id FROM notes WHERE id=?", (nid,))
+        row = cur.fetchone()
+    if row and row["linked_daily_log_id"]:  # 改到某天的关联笔记要覆盖当天存档
+        obsidian.write_for_log(row["linked_daily_log_id"])
     redirect_to = request.form.get("redirect_to") or url_for("notes_list")
     return redirect(redirect_to)
 
@@ -1356,7 +1367,13 @@ def note_edit(nid):
 @app.route("/note/<int:nid>/delete", methods=["POST"])
 def note_delete(nid):
     with db.cursor() as cur:
+        # 删前先记住它关联哪天，删完好把那天存档里的笔记同步掉
+        cur.execute("SELECT linked_daily_log_id FROM notes WHERE id=?", (nid,))
+        row = cur.fetchone()
+        linked_log = row["linked_daily_log_id"] if row else None
         cur.execute("DELETE FROM notes WHERE id=?", (nid,))
+    if linked_log:
+        obsidian.write_for_log(linked_log)
     redirect_to = request.form.get("redirect_to") or url_for("notes_list")
     return redirect(redirect_to)
 
@@ -1620,6 +1637,12 @@ def settings():
         db.set_setting("ai_base_url", request.form.get("ai_base_url", "").strip())
         db.set_setting("ai_model", request.form.get("ai_model", "").strip())
         db.set_setting("backup_dir", request.form.get("backup_dir", "").strip())
+        # Obsidian 归档目录：路径由空变非空 / 改动时，把历史日志全量补写一遍
+        old_vault = (db.get_setting("obsidian_vault_dir") or "").strip()
+        new_vault = request.form.get("obsidian_vault_dir", "").strip()
+        db.set_setting("obsidian_vault_dir", new_vault)
+        if new_vault and new_vault != old_vault:
+            obsidian.backfill_all()
         gh = request.form.get("github_token", "").strip()
         if gh:
             db.set_setting("github_token", gh)
@@ -1631,6 +1654,7 @@ def settings():
     gh = db.get_setting("github_token", "")
     backup_dir = db.get_setting("backup_dir", "")
     backup_dir_active = db.resolve_backup_dir()
+    obsidian_vault_dir = db.get_setting("obsidian_vault_dir", "")
     with db.cursor() as cur:
         cur.execute("SELECT * FROM projects WHERE excluded_from_scan = 1 ORDER BY name")
         excluded = [dict(r) for r in cur.fetchall()]
@@ -1645,6 +1669,7 @@ def settings():
         github_token_set=bool(gh),
         backup_dir=backup_dir,
         backup_dir_active=backup_dir_active,
+        obsidian_vault_dir=obsidian_vault_dir,
         excluded=excluded,
         categories=categories,
     )
