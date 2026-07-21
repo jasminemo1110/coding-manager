@@ -36,13 +36,30 @@ def _yaml_quote(value):
     return '"' + (value or "").replace("\\", "\\\\").replace('"', '\\"') + '"'
 
 
+def _tag(text):
+    """转成 Obsidian 合法 tag：空白换连字符，去掉标签不支持的标点（中文/字母/数字/_/- 都保留）。
+
+    Obsidian 里 tag 遇空格即截断，所以项目名有空格/标点时不能原样当 tag。
+    """
+    text = re.sub(r"\s+", "-", (text or "").strip())
+    text = re.sub(r"[^\w\-]", "", text, flags=re.UNICODE)
+    return text.strip("-")
+
+
 def _build_markdown(project_name, log, linked_notes):
     """按「frontmatter + 当天更新（AI 摘要 + 手动补充）+ 当天笔记」拼一份单日 Markdown。"""
     day = log["date"]
+    # 每篇默认打上「项目日志」+ 项目名两个 tag，方便在 Obsidian 里按项目/类别聚合
+    tags = ["项目日志"]
+    proj_tag = _tag(project_name)
+    if proj_tag and proj_tag not in tags:
+        tags.append(proj_tag)
     lines = [
         "---",
         f"project: {_yaml_quote(project_name)}",
         f"date: {day}",
+        "tags:",
+        *[f"  - {t}" for t in tags],
         "---",
         "",
         f"# {project_name} · {day}",

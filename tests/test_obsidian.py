@@ -47,6 +47,22 @@ def test_write_day_has_frontmatter_and_content(test_db, tmp_path):
     assert 'project: "我的项目"' in text
     assert "date: 2026-07-20" in text
     assert "今天加了归档功能" in text
+    # 默认 tags：项目日志 + 项目名
+    assert "tags:" in text
+    assert "  - 项目日志" in text
+    assert "  - 我的项目" in text
+
+
+def test_tag_sanitized_for_obsidian(test_db, tmp_path):
+    """项目名含空格/标点时，tag 转成 Obsidian 合法形式（空格→连字符、去标点）。"""
+    vault = tmp_path / "vault"
+    test_db.set_setting("obsidian_vault_dir", str(vault))
+    pid = add_project(test_db, "My Cool App!", tmp_path)
+    add_log(test_db, pid, "2026-07-20", auto_summary="x")
+    obsidian.write_day(pid, "2026-07-20")
+    # 文件名/目录用原名的安全化，tag 用 Obsidian 化后的名字
+    text = (vault / "coding-dashboard" / "My Cool App!" / "2026-07-20.md").read_text("utf-8")
+    assert "  - My-Cool-App" in text
 
 
 def test_manual_notes_overwrite(test_db, tmp_path):
