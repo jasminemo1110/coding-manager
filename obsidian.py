@@ -14,7 +14,7 @@ import re
 
 import db
 
-VAULT_SUBDIR = "coding-dashboard"
+DEFAULT_SUBDIR = "coding-dashboard"
 
 
 def vault_dir():
@@ -23,6 +23,12 @@ def vault_dir():
     if not configured:
         return None
     return os.path.expanduser(configured)
+
+
+def subdir():
+    """归档落在 vault 下的总文件夹名，用户可在设置里改；留空回落默认 coding-dashboard。"""
+    name = (db.get_setting("obsidian_subdir") or "").strip()
+    return _safe_name(name) if name else DEFAULT_SUBDIR
 
 
 def _safe_name(name):
@@ -101,7 +107,7 @@ def _write_file(project_name, day_iso, content):
     if not root:
         return None
     try:
-        proj_dir = os.path.join(root, VAULT_SUBDIR, _safe_name(project_name))
+        proj_dir = os.path.join(root, subdir(), _safe_name(project_name))
         os.makedirs(proj_dir, exist_ok=True)
         path = os.path.join(proj_dir, f"{day_iso}.md")
         with open(path, "w", encoding="utf-8") as f:

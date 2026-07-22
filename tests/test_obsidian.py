@@ -118,6 +118,31 @@ def test_linked_note_in_archive(test_db, tmp_path):
     assert "SQLite WAL 的坑" in text
 
 
+def test_custom_subdir(test_db, tmp_path):
+    """改了总文件夹名后，文件落到新名字下，默认 coding-dashboard 不再出现。"""
+    vault = tmp_path / "vault"
+    test_db.set_setting("obsidian_vault_dir", str(vault))
+    test_db.set_setting("obsidian_subdir", "我的编码日志")
+    pid = add_project(test_db, "proj", tmp_path)
+    add_log(test_db, pid, "2026-07-20", auto_summary="x")
+
+    obsidian.write_day(pid, "2026-07-20")
+    assert (vault / "我的编码日志" / "proj" / "2026-07-20.md").exists()
+    assert not (vault / "coding-dashboard").exists()
+
+
+def test_subdir_defaults_when_blank(test_db, tmp_path):
+    """总文件夹名留空时回落默认 coding-dashboard。"""
+    vault = tmp_path / "vault"
+    test_db.set_setting("obsidian_vault_dir", str(vault))
+    test_db.set_setting("obsidian_subdir", "")
+    pid = add_project(test_db, "proj", tmp_path)
+    add_log(test_db, pid, "2026-07-20", auto_summary="x")
+
+    obsidian.write_day(pid, "2026-07-20")
+    assert (vault / "coding-dashboard" / "proj" / "2026-07-20.md").exists()
+
+
 def test_backfill_all(test_db, tmp_path):
     vault = tmp_path / "vault"
     test_db.set_setting("obsidian_vault_dir", str(vault))

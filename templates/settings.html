@@ -47,6 +47,8 @@
     <p class="muted small">填了之后，每次同步都会把当天有更新的每日日志（AI 摘要 + 手动补充 + 当天关联笔记）写成 Markdown，存到这个 vault 下的 <code>coding-dashboard/&lt;项目名&gt;/&lt;日期&gt;.md</code>，方便直接在 Obsidian 里检索。覆盖式：手动补充或重生成摘要后会即时重写当天文件。<br>
       填的应是 Obsidian vault 的根目录（含 <code>.obsidian/</code> 那个）。<strong>首次填入或改动路径时，会把已有的历史日志一次性全部补写过去。</strong>留空则不归档。</p>
     <label class="check"><input type="text" name="obsidian_vault_dir" value="{{ obsidian_vault_dir }}" placeholder="留空则不归档；例如 ~/Documents/ObsidianVault" style="width:100%"></label>
+    <p class="muted small" style="margin-top:.6rem">vault 下的总文件夹名（所有项目日志都放它里面）。留空默认 <code>coding-dashboard</code>。<strong>改名后会把历史日志全部补写到新文件夹；旧文件夹不会自动删，想保留旧文件就先在 Obsidian 里把它一并重命名成新名字。</strong></p>
+    <label class="check"><input type="text" name="obsidian_subdir" value="{{ obsidian_subdir }}" placeholder="留空默认 coding-dashboard" style="width:100%"></label>
   </section>
 
   <div class="dialog-actions">

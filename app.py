@@ -1637,11 +1637,14 @@ def settings():
         db.set_setting("ai_base_url", request.form.get("ai_base_url", "").strip())
         db.set_setting("ai_model", request.form.get("ai_model", "").strip())
         db.set_setting("backup_dir", request.form.get("backup_dir", "").strip())
-        # Obsidian 归档目录：路径由空变非空 / 改动时，把历史日志全量补写一遍
+        # Obsidian 归档：vault 路径或总文件夹名有变化时，把历史日志全量补写一遍
         old_vault = (db.get_setting("obsidian_vault_dir") or "").strip()
         new_vault = request.form.get("obsidian_vault_dir", "").strip()
+        old_subdir = (db.get_setting("obsidian_subdir") or "").strip()
+        new_subdir = request.form.get("obsidian_subdir", "").strip()
         db.set_setting("obsidian_vault_dir", new_vault)
-        if new_vault and new_vault != old_vault:
+        db.set_setting("obsidian_subdir", new_subdir)  # 先写设置，backfill 才落到新文件夹
+        if new_vault and (new_vault != old_vault or new_subdir != old_subdir):
             obsidian.backfill_all()
         gh = request.form.get("github_token", "").strip()
         if gh:
@@ -1655,6 +1658,7 @@ def settings():
     backup_dir = db.get_setting("backup_dir", "")
     backup_dir_active = db.resolve_backup_dir()
     obsidian_vault_dir = db.get_setting("obsidian_vault_dir", "")
+    obsidian_subdir = db.get_setting("obsidian_subdir", "")
     with db.cursor() as cur:
         cur.execute("SELECT * FROM projects WHERE excluded_from_scan = 1 ORDER BY name")
         excluded = [dict(r) for r in cur.fetchall()]
@@ -1670,6 +1674,7 @@ def settings():
         backup_dir=backup_dir,
         backup_dir_active=backup_dir_active,
         obsidian_vault_dir=obsidian_vault_dir,
+        obsidian_subdir=obsidian_subdir,
         excluded=excluded,
         categories=categories,
     )
