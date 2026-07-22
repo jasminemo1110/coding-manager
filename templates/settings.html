@@ -49,6 +49,10 @@
     <label class="check"><input type="text" name="obsidian_vault_dir" value="{{ obsidian_vault_dir }}" placeholder="留空则不归档；例如 ~/Documents/ObsidianVault" style="width:100%"></label>
     <p class="muted small" style="margin-top:.6rem">vault 下的总文件夹名（所有项目日志都放它里面）。留空默认 <code>coding-dashboard</code>。<strong>改名后会把历史日志全部补写到新文件夹；旧文件夹不会自动删，想保留旧文件就先在 Obsidian 里把它一并重命名成新名字。</strong></p>
     <label class="check"><input type="text" name="obsidian_subdir" value="{{ obsidian_subdir }}" placeholder="留空默认 coding-dashboard" style="width:100%"></label>
+    <p class="muted small" style="margin-top:.6rem">日记文件夹（vault 内的相对路径，日记文件需按 <code>YYYY-MM-DD.md</code> 命名）。填了之后，每次同步会往当天日记里自动填「今日 Vibe Coding 成果」模块——前提是日记里放了下面这对锚点（建议直接加进你的日记模板）：<br>
+      <code>&lt;!-- vibe:start --&gt;</code>&nbsp;&nbsp;<code>&lt;!-- vibe:end --&gt;</code><br>
+      只有锚点之间的内容会被接管，日记其余部分绝不会被碰。日记晚建、补建都没关系，下一次同步会自动补上。留空则不往日记里写。</p>
+    <label class="check"><input type="text" name="obsidian_diary_subdir" value="{{ obsidian_diary_subdir }}" placeholder="留空则不启用；例如 日记随笔" style="width:100%"></label>
   </section>
 
   <div class="dialog-actions">

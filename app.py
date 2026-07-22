@@ -1012,6 +1012,8 @@ def _run_sync(project_ids):
                     _sync_state["skipped"] += 1
                 elif r.get("ok") and r.get("commits"):
                     _sync_state["synced"] += 1
+        # 收尾扫一遍日记：兜住「先同步了、日记后来才建」的天（无论隔了多少天）
+        obsidian.inject_sweep()
     finally:
         with _sync_lock:
             _sync_state["running"] = False
@@ -1646,6 +1648,12 @@ def settings():
         db.set_setting("obsidian_subdir", new_subdir)  # 先写设置，backfill 才落到新文件夹
         if new_vault and (new_vault != old_vault or new_subdir != old_subdir):
             obsidian.backfill_all()
+        # 日记文件夹：首次填入或改动时，立即把已有日记全扫一遍填托管块
+        old_diary = (db.get_setting("obsidian_diary_subdir") or "").strip()
+        new_diary = request.form.get("obsidian_diary_subdir", "").strip()
+        db.set_setting("obsidian_diary_subdir", new_diary)
+        if new_vault and new_diary and (new_diary != old_diary or new_vault != old_vault):
+            obsidian.inject_sweep()
         gh = request.form.get("github_token", "").strip()
         if gh:
             db.set_setting("github_token", gh)
@@ -1659,6 +1667,7 @@ def settings():
     backup_dir_active = db.resolve_backup_dir()
     obsidian_vault_dir = db.get_setting("obsidian_vault_dir", "")
     obsidian_subdir = db.get_setting("obsidian_subdir", "")
+    obsidian_diary_subdir = db.get_setting("obsidian_diary_subdir", "")
     with db.cursor() as cur:
         cur.execute("SELECT * FROM projects WHERE excluded_from_scan = 1 ORDER BY name")
         excluded = [dict(r) for r in cur.fetchall()]
@@ -1675,6 +1684,7 @@ def settings():
         backup_dir_active=backup_dir_active,
         obsidian_vault_dir=obsidian_vault_dir,
         obsidian_subdir=obsidian_subdir,
+        obsidian_diary_subdir=obsidian_diary_subdir,
         excluded=excluded,
         categories=categories,
     )

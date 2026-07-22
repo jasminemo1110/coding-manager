@@ -158,6 +158,107 @@ def test_backfill_all(test_db, tmp_path):
     assert (base / "2026-07-20.md").exists()
 
 
+def _setup_diary(test_db, tmp_path, diary_name="日记随笔"):
+    """配好 vault + 日记文件夹，返回日记目录 Path。"""
+    vault = tmp_path / "vault"
+    test_db.set_setting("obsidian_vault_dir", str(vault))
+    test_db.set_setting("obsidian_diary_subdir", diary_name)
+    d = vault / diary_name
+    d.mkdir(parents=True)
+    return d
+
+
+DIARY_TEMPLATE = "# 我的一天\n\n今天心情不错。\n\n<!-- vibe:start -->\n<!-- vibe:end -->\n\n晚安。\n"
+
+
+def test_inject_day_fills_block_and_keeps_diary_text(test_db, tmp_path):
+    diary = _setup_diary(test_db, tmp_path)
+    pid = add_project(test_db, "proj", tmp_path)
+    add_log(test_db, pid, "2026-07-22", auto_summary="x")
+    (diary / "2026-07-22.md").write_text(DIARY_TEMPLATE, encoding="utf-8")
+
+    assert obsidian.inject_day("2026-07-22") is not None
+    text = (diary / "2026-07-22.md").read_text(encoding="utf-8")
+    # 用户手写的内容原样保留
+    assert "今天心情不错。" in text and "晚安。" in text
+    # 托管块：标题 + 项目链接 + 嵌入「当天更新」段
+    assert "## 今日 Vibe Coding 成果" in text
+    assert "[[coding-dashboard/proj/2026-07-22|proj]]" in text
+    assert "![[coding-dashboard/proj/2026-07-22#当天更新]]" in text
+
+
+def test_inject_day_idempotent_no_rewrite(test_db, tmp_path):
+    """内容没变时第二次注入不落盘（返回 None），对文件同步方案友好。"""
+    diary = _setup_diary(test_db, tmp_path)
+    pid = add_project(test_db, "proj", tmp_path)
+    add_log(test_db, pid, "2026-07-22", auto_summary="x")
+    (diary / "2026-07-22.md").write_text(DIARY_TEMPLATE, encoding="utf-8")
+
+    assert obsidian.inject_day("2026-07-22") is not None
+    assert obsidian.inject_day("2026-07-22") is None
+
+
+def test_inject_day_skips_without_anchor_or_file(test_db, tmp_path):
+    diary = _setup_diary(test_db, tmp_path)
+    pid = add_project(test_db, "proj", tmp_path)
+    add_log(test_db, pid, "2026-07-22", auto_summary="x")
+    # 日记不存在 → 跳过
+    assert obsidian.inject_day("2026-07-22") is None
+    # 有日记但没锚点 → 原样不动
+    raw = "# 手写日记，没有锚点\n"
+    (diary / "2026-07-22.md").write_text(raw, encoding="utf-8")
+    assert obsidian.inject_day("2026-07-22") is None
+    assert (diary / "2026-07-22.md").read_text(encoding="utf-8") == raw
+
+
+def test_inject_day_empty_day(test_db, tmp_path):
+    """当天没有任何项目更新时，块里写占位说明。"""
+    _setup_diary(test_db, tmp_path)
+    diary = tmp_path / "vault" / "日记随笔"
+    (diary / "2026-07-22.md").write_text(DIARY_TEMPLATE, encoding="utf-8")
+    obsidian.inject_day("2026-07-22")
+    text = (diary / "2026-07-22.md").read_text(encoding="utf-8")
+    assert "（今天没有项目更新）" in text
+
+
+def test_inject_disabled_without_setting(test_db, tmp_path):
+    """没填日记文件夹时整个日记集成关闭。"""
+    vault = tmp_path / "vault"
+    test_db.set_setting("obsidian_vault_dir", str(vault))
+    pid = add_project(test_db, "proj", tmp_path)
+    add_log(test_db, pid, "2026-07-22", auto_summary="x")
+    assert obsidian.inject_day("2026-07-22") is None
+    assert obsidian.inject_sweep() == 0
+
+
+def test_inject_sweep_backfills_late_diary(test_db, tmp_path):
+    """日记补建（哪怕隔了很多天）后，sweep 会把对应天填上；非日期命名文件跳过。"""
+    diary = _setup_diary(test_db, tmp_path)
+    pid = add_project(test_db, "proj", tmp_path)
+    add_log(test_db, pid, "2026-07-10", auto_summary="老日志")
+    # 过了很多天才补建 7-10 的日记；同目录还有周记/月记
+    (diary / "2026-07-10.md").write_text(DIARY_TEMPLATE, encoding="utf-8")
+    (diary / "2026-W28.md").write_text("周记", encoding="utf-8")
+    (diary / "2026-07.md").write_text("月记", encoding="utf-8")
+
+    assert obsidian.inject_sweep() == 1
+    text = (diary / "2026-07-10.md").read_text(encoding="utf-8")
+    assert "[[coding-dashboard/proj/2026-07-10|proj]]" in text
+    assert (diary / "2026-W28.md").read_text(encoding="utf-8") == "周记"
+
+
+def test_write_day_refreshes_diary(test_db, tmp_path):
+    """归档重写（如手动补充）会连带刷新当天日记的托管块。"""
+    diary = _setup_diary(test_db, tmp_path)
+    pid = add_project(test_db, "proj", tmp_path)
+    log_id = add_log(test_db, pid, "2026-07-22", auto_summary="x")
+    (diary / "2026-07-22.md").write_text(DIARY_TEMPLATE, encoding="utf-8")
+
+    obsidian.write_for_log(log_id)
+    text = (diary / "2026-07-22.md").read_text(encoding="utf-8")
+    assert "[[coding-dashboard/proj/2026-07-22|proj]]" in text
+
+
 def test_sync_generates_archive(test_db, tmp_path, repo):
     """走完整同步链路：有 commit 的当天应生成归档文件。"""
     vault = tmp_path / "vault"

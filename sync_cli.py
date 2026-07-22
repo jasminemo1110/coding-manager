@@ -11,6 +11,7 @@ from datetime import date, datetime
 
 import db
 import app
+import obsidian
 
 
 def main():
@@ -29,13 +30,15 @@ def main():
         else:
             synced += 1
             print(f"  ✓ {p['name']}: {r['days']} 天 / {r['commits']} 条 commit")
+    # 收尾扫一遍日记托管块：兜住「日记晚建/补建」的天
+    diaries = obsidian.inject_sweep()
     backup = db.backup_db()
     if backup:
         db.set_setting("last_backup_date", date.today().isoformat())
     done = datetime.now().strftime("%H:%M:%S")
     print(
         f"[{done}] 完成：{synced} 有更新 / {skipped} 无改动 / {failed} 失败；"
-        f"备份 -> {backup or '失败'}"
+        f"日记托管块刷新 {diaries} 篇；备份 -> {backup or '失败'}"
     )
 
 
