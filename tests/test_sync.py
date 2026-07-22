@@ -141,6 +141,51 @@ def test_failed_placeholder_retried(test_db, repo, monkeypatch):
     assert len(calls) == 1
 
 
+def test_midnight_late_commit_backfilled(test_db, repo, monkeypatch):
+    """零点裂缝：水位线当天在上次同步之后又出的 commit，次日同步要补进那天日志。"""
+    yesterday = iso(1)
+    make_commit(repo, "a.txt", "傍晚的提交", yesterday)
+    pid = add_project(test_db, "proj", repo)
+    # 模拟昨天同步过：日志只含当时那 1 条 commit + 摘要，水位线停在昨天
+    commits, _ = app.scanner.get_commits_for_day(str(repo), yesterday)
+    with test_db.cursor() as cur:
+        cur.execute(
+            "INSERT INTO daily_logs (project_id, date, auto_summary, raw_commits_json) "
+            "VALUES (?,?,?,?)",
+            (pid, yesterday, "昨晚的摘要", json.dumps(commits)),
+        )
+    test_db.set_setting(f"last_sync_date:{pid}", yesterday)
+    # 23:59 又提交一条（git 日期仍属昨天），过零点才同步
+    make_commit(repo, "b.txt", "深夜的提交", yesterday)
+
+    calls = fake_ai(monkeypatch, "补齐后的摘要")
+    app.sync_one_project(pid)
+    log = get_log(test_db, pid, yesterday)
+    assert len(json.loads(log["raw_commits_json"])) == 2   # 深夜那条补进来了
+    assert log["auto_summary"] == "补齐后的摘要"             # 摘要按完整两条重写
+    assert len(calls) == 1                                  # 只为集合变了的那天调 AI
+
+
+def test_watermark_day_unchanged_skipped(test_db, repo, monkeypatch):
+    """水位线当天重扫但 commit 集合没变：照旧跳过，不重复花 AI。"""
+    yesterday = iso(1)
+    make_commit(repo, "a.txt", "x", yesterday)
+    pid = add_project(test_db, "proj", repo)
+    commits, _ = app.scanner.get_commits_for_day(str(repo), yesterday)
+    with test_db.cursor() as cur:
+        cur.execute(
+            "INSERT INTO daily_logs (project_id, date, auto_summary, raw_commits_json) "
+            "VALUES (?,?,?,?)",
+            (pid, yesterday, "已有摘要", json.dumps(commits)),
+        )
+    test_db.set_setting(f"last_sync_date:{pid}", yesterday)
+
+    calls = fake_ai(monkeypatch, "不该出现")
+    app.sync_one_project(pid)
+    assert get_log(test_db, pid, yesterday)["auto_summary"] == "已有摘要"
+    assert calls == []
+
+
 def test_today_summary_refreshed_every_sync(test_db, repo, monkeypatch):
     make_commit(repo, "a.txt", "x", iso(0))
     pid = add_project(test_db, "proj", repo)
@@ -186,9 +231,9 @@ def test_sync_start_date_clamped(test_db):
     floor = date.today() - timedelta(days=app.MAX_SYNC_LOOKBACK_DAYS)
     # 无水位线 → 回看上限
     assert app._sync_start_date(999, today) == floor
-    # 正常水位线 → 次日
+    # 正常水位线 → 当天重扫（兜住零点裂缝：那天在上次同步后可能又有新 commit）
     test_db.set_setting("last_sync_date:999", iso(3))
-    assert app._sync_start_date(999, today) == date.today() - timedelta(days=2)
+    assert app._sync_start_date(999, today) == date.today() - timedelta(days=3)
     # 很旧的水位线 → 不早于回看上限
     test_db.set_setting("last_sync_date:999", "2020-01-01")
     assert app._sync_start_date(999, today) == floor

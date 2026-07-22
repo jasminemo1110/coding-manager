@@ -846,12 +846,18 @@ MAX_SYNC_LOOKBACK_DAYS = 60
 
 
 def _sync_start_date(pid, today):
-    """这个项目本次该从哪天开始补：上次水位线的次日，但不早于 today - 回看上限。"""
+    """这个项目本次该从哪天开始补：上次水位线当天，但不早于 today - 回看上限。
+
+    从水位线「当天」而非次日开始：那天在上次同步之后可能又出了新 commit
+    （典型：干到深夜，23:59 提交、过零点才再同步，这条 commit 属于前一天），
+    要能被重扫补进当天日志，否则永远掉在缝里。没变化的天有 commit 集合比对
+    兜着（见 sync_project_day），不会重复花 AI 调用。
+    """
     floor = (date.fromisoformat(today) - dt.timedelta(days=MAX_SYNC_LOOKBACK_DAYS))
     wm = db.get_setting(f"last_sync_date:{pid}")
     if wm:
         try:
-            start = date.fromisoformat(wm) + dt.timedelta(days=1)
+            start = date.fromisoformat(wm)
         except ValueError:
             start = floor
     else:
@@ -884,7 +890,8 @@ def sync_project_day(p, day_iso, today, unpushed_hashes, mem_today, info, ai_cfg
     # 已经有摘要的历史天就别再重复调 AI（今天例外：每次都刷新覆盖）
     with db.cursor() as cur:
         cur.execute(
-            "SELECT auto_summary FROM daily_logs WHERE project_id = ? AND date = ?",
+            "SELECT auto_summary, raw_commits_json FROM daily_logs "
+            "WHERE project_id = ? AND date = ?",
             (pid, day_iso),
         )
         row = cur.fetchone()
@@ -892,7 +899,15 @@ def sync_project_day(p, day_iso, today, unpushed_hashes, mem_today, info, ai_cfg
     # 失败占位文本（[AI 摘要失败：…]）不算已有摘要，否则一次网络抖动会让历史天永远停在错误文本上
     already_summarized = bool(summary_text) and not summary_text.startswith("[AI")
     if already_summarized and not is_today:
-        return len(commits), False
+        # 但要比对 commit 集合：那天在上次同步之后又出了新 commit（深夜提交、过零点
+        # 才同步的「零点裂缝」）就得重写补齐；集合没变才跳过，不重复花 AI 调用。
+        try:
+            known = {c.get("hash") for c in json.loads(row["raw_commits_json"] or "[]")}
+        except (ValueError, TypeError):
+            known = set()
+        # 老数据没存 commit 列表的无从比较，按没变处理，别为它们重花 AI
+        if not known or known == {c["hash"] for c in commits}:
+            return len(commits), False
 
     summary = (
         ai.summarize(p["name"], commits, diff, cfg=ai_cfg)
