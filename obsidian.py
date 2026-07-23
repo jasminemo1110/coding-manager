@@ -225,56 +225,78 @@ def _diary_block(day_iso):
     return "\n".join(lines).rstrip()
 
 
-def inject_day(day_iso):
-    """把某天的托管块写进当天日记。
+def _inject_into_file(path, day_iso):
+    """把 day_iso 的托管块写进 path，返回结果状态字符串：
 
-    日记不存在、没放锚点、或重算后内容没变 → 都返回 None 不动文件。
-    只替换锚点之间的内容，用户手写的部分一个字不碰。失败静默（仿 write_day）。
+    written（改写了）/ unchanged（内容已最新，不落盘）/ no-file / no-anchor /
+    denied（macOS 权限拒绝读或写——vault 在 ~/Documents 又没授 FDA 的典型症状）/ error。
+    """
+    if not os.path.isfile(path):
+        return "no-file"
+    try:
+        with open(path, encoding="utf-8") as f:
+            text = f.read()
+    except PermissionError:
+        return "denied"
+    except Exception:
+        return "error"
+    start = text.find(DIARY_ANCHOR_START)
+    if start == -1:
+        return "no-anchor"
+    inner_from = start + len(DIARY_ANCHOR_START)
+    end = text.find(DIARY_ANCHOR_END, inner_from)
+    if end == -1:
+        return "no-anchor"
+    rebuilt = text[:inner_from] + "\n" + _diary_block(day_iso) + "\n" + text[end:]
+    if rebuilt == text:
+        return "unchanged"  # 重算后没变化，不动 mtime（对文件同步方案友好）
+    try:
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(rebuilt)
+    except PermissionError:
+        return "denied"
+    except Exception:
+        return "error"
+    return "written"
+
+
+def inject_day(day_iso):
+    """把某天的托管块写进当天日记，写成功返回路径，否则 None。
+
+    只替换 <!-- vibe:start/end --> 锚点之间的内容，用户手写的部分一个字不碰；
+    日记不存在、没锚点、内容没变、或没权限 → 都返回 None，绝不打断主流程。
     """
     d = diary_dir()
     if not d:
         return None
     path = os.path.join(d, f"{day_iso}.md")
-    if not os.path.isfile(path):
-        return None
-    try:
-        with open(path, encoding="utf-8") as f:
-            text = f.read()
-        start = text.find(DIARY_ANCHOR_START)
-        if start == -1:
-            return None
-        inner_from = start + len(DIARY_ANCHOR_START)
-        end = text.find(DIARY_ANCHOR_END, inner_from)
-        if end == -1:
-            return None
-        rebuilt = (
-            text[:inner_from] + "\n" + _diary_block(day_iso) + "\n" + text[end:]
-        )
-        if rebuilt == text:
-            return None
-        with open(path, "w", encoding="utf-8") as f:
-            f.write(rebuilt)
-        return path
-    except Exception:
-        return None
+    return path if _inject_into_file(path, day_iso) == "written" else None
 
 
 def inject_sweep():
     """扫日记文件夹里所有日期命名的文件，逐个刷新托管块。
 
     兜住「日记晚建/补建」：不管日记什么时候建，下一次同步跑到这里就会填上。
-    周记/月记等非 YYYY-MM-DD 命名的文件自动跳过。返回实际改写的文件数。
+    周记/月记等非 YYYY-MM-DD 命名的文件自动跳过。
+    返回统计 dict：written / unchanged / denied（权限被拒的文件数）/
+    list_denied（连日记文件夹都列不了，FDA 未生效的强信号）。
     """
+    stats = {"written": 0, "unchanged": 0, "denied": 0, "list_denied": False}
     d = diary_dir()
     if not d or not os.path.isdir(d):
-        return 0
-    written = 0
+        return stats
     try:
         entries = os.listdir(d)
+    except PermissionError:
+        stats["list_denied"] = True
+        return stats
     except Exception:
-        return 0
+        return stats
     for fn in entries:
         m = _DIARY_FILE_RE.match(fn)
-        if m and inject_day(m.group(1)):
-            written += 1
-    return written
+        if not m:
+            continue
+        status = _inject_into_file(os.path.join(d, fn), m.group(1))
+        if status in stats:
+            stats[status] += 1
+    return stats

@@ -228,7 +228,7 @@ def test_inject_disabled_without_setting(test_db, tmp_path):
     pid = add_project(test_db, "proj", tmp_path)
     add_log(test_db, pid, "2026-07-22", auto_summary="x")
     assert obsidian.inject_day("2026-07-22") is None
-    assert obsidian.inject_sweep() == 0
+    assert obsidian.inject_sweep()["written"] == 0
 
 
 def test_inject_sweep_backfills_late_diary(test_db, tmp_path):
@@ -241,10 +241,24 @@ def test_inject_sweep_backfills_late_diary(test_db, tmp_path):
     (diary / "2026-W28.md").write_text("周记", encoding="utf-8")
     (diary / "2026-07.md").write_text("月记", encoding="utf-8")
 
-    assert obsidian.inject_sweep() == 1
+    assert obsidian.inject_sweep()["written"] == 1
     text = (diary / "2026-07-10.md").read_text(encoding="utf-8")
     assert "[[coding-dashboard/proj/2026-07-10|proj]]" in text
     assert (diary / "2026-W28.md").read_text(encoding="utf-8") == "周记"
+
+
+def test_inject_sweep_counts_unchanged(test_db, tmp_path):
+    """已经最新的日记在下次 sweep 里算 unchanged、不算 written——用来和权限失败区分。"""
+    diary = _setup_diary(test_db, tmp_path)
+    pid = add_project(test_db, "proj", tmp_path)
+    add_log(test_db, pid, "2026-07-22", auto_summary="x")
+    (diary / "2026-07-22.md").write_text(DIARY_TEMPLATE, encoding="utf-8")
+
+    first = obsidian.inject_sweep()
+    assert first["written"] == 1 and first["unchanged"] == 0
+    second = obsidian.inject_sweep()
+    assert second["written"] == 0 and second["unchanged"] == 1
+    assert second["denied"] == 0 and second["list_denied"] is False
 
 
 def test_write_day_refreshes_diary(test_db, tmp_path):

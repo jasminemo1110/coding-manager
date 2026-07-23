@@ -32,13 +32,20 @@ def main():
             print(f"  ✓ {p['name']}: {r['days']} 天 / {r['commits']} 条 commit")
     # 收尾扫一遍日记托管块：兜住「日记晚建/补建」的天
     diaries = obsidian.inject_sweep()
+    diary_msg = f"日记托管块刷新 {diaries['written']} 篇"
+    if diaries["list_denied"]:
+        diary_msg += "（⚠️ 读不了日记文件夹，多半是 FDA 权限没生效）"
+    elif diaries["denied"]:
+        diary_msg += f"（⚠️ {diaries['denied']} 篇因权限被拒）"
+    elif diaries["unchanged"]:
+        diary_msg += f"（另 {diaries['unchanged']} 篇已是最新）"
     backup = db.backup_db()
     if backup:
         db.set_setting("last_backup_date", date.today().isoformat())
     done = datetime.now().strftime("%H:%M:%S")
     print(
         f"[{done}] 完成：{synced} 有更新 / {skipped} 无改动 / {failed} 失败；"
-        f"日记托管块刷新 {diaries} 篇；备份 -> {backup or '失败'}"
+        f"{diary_msg}；备份 -> {backup or '失败'}"
     )
 
 
