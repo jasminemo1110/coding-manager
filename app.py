@@ -429,6 +429,9 @@ def dashboard():
         order = {s: i for i, s in enumerate(db.STAGE_ORDER)}
         enriched.sort(key=lambda p: order.get(p.get("stage"), 99))
 
+    # 暂停的项目沉底——不管哪种排序。sort 是稳定的，组内顺序照上面排好的来
+    enriched.sort(key=lambda p: 1 if p.get("paused") else 0)
+
     todos = build_todos(enriched)
     suggestions = scan_suggestions()
     heatmap = build_heatmap()
