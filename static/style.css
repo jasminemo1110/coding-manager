@@ -835,6 +835,7 @@ code { font-family: 'JetBrains Mono', SFMono-Regular, Menlo, monospace; font-siz
 .stage-in_progress { background-color: var(--amber-soft); color: var(--amber); }
 .stage-mvp_done { background-color: #DCE7F0; color: #3A5C7D; }
 .stage-polishing { background-color: #EDE3F0; color: #6E4D85; }
+.stage-paused { background-color: #E8E5DE; color: #6B675C; }
 
 .badges {
   display: flex;

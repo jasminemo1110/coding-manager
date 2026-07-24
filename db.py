@@ -415,7 +415,8 @@ STAGE_LABELS = {
     "in_progress": "推进中",
     "mvp_done": "初步完成",
     "polishing": "进阶优化中",
+    "paused": "暂停中",
 }
-STAGE_ORDER = ["sprout", "plan", "in_progress", "mvp_done", "polishing"]
+STAGE_ORDER = ["sprout", "plan", "in_progress", "mvp_done", "polishing", "paused"]
 
 PRESET_CATEGORIES = ["Skill", "公开网站", "工作", "自用", "生活"]
