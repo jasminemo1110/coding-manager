@@ -394,11 +394,19 @@ def dashboard():
     category_param = request.args.get("category", "")
     stage_filter_list = [s for s in stage_param.split(",") if s and s != "all"]
     category_filter_list = [c for c in category_param.split(",") if c and c != "all"]
+    # 「暂停中」和阶段正交，所以单独一组筛选：all 全都要 / active 只看在推进的 / paused 只看停着的
+    status_filter = request.args.get("status", "all")
+    if status_filter not in ("all", "active", "paused"):
+        status_filter = "all"
     sort_by = request.args.get("sort", "updated")
     projects = all_projects()
     enriched = [enrich_project(p) for p in projects]
     if stage_filter_list:
         enriched = [p for p in enriched if p.get("stage") in stage_filter_list]
+    if status_filter == "active":
+        enriched = [p for p in enriched if not p.get("paused")]
+    elif status_filter == "paused":
+        enriched = [p for p in enriched if p.get("paused")]
     if category_filter_list:
         enriched = [
             p for p in enriched
@@ -434,6 +442,7 @@ def dashboard():
         category_filter_list=category_filter_list,
         stage_filter_str=",".join(stage_filter_list),
         category_filter_str=",".join(category_filter_list),
+        status_filter=status_filter,
         sort_by=sort_by,
         stage_labels=db.STAGE_LABELS,
         stage_order=db.STAGE_ORDER,
@@ -715,12 +724,13 @@ def project_update(pid):
     category_ids = request.form.getlist("category_ids")
     with db.cursor() as cur:
         cur.execute(
-            "UPDATE projects SET name=?, path=?, stage=?, online_url=?, online_status=?, "
+            "UPDATE projects SET name=?, path=?, stage=?, paused=?, online_url=?, online_status=?, "
             "tracks_deployment=?, github_repo=?, github_visibility=?, github_repo_public=? WHERE id=?",
             (
                 request.form.get("name", p["name"]).strip(),
                 (request.form.get("path") or "").strip() or None,
                 request.form.get("stage", p["stage"]),
+                1 if request.form.get("paused") else 0,
                 (request.form.get("online_url") or "").strip() or None,
                 1 if request.form.get("online_status") else 0,
                 1 if request.form.get("tracks_deployment") else 0,
@@ -785,6 +795,16 @@ def project_category_toggle(pid):
             )
             on = True
     return jsonify({"ok": True, "on": on})
+
+
+@app.route("/project/<int:pid>/pause", methods=["POST"])
+def project_pause_toggle(pid):
+    """「暂停中」是叠加状态，不动 stage——项目停在哪一步照旧记着。"""
+    with db.cursor() as cur:
+        cur.execute("UPDATE projects SET paused = 1 - paused WHERE id = ?", (pid,))
+        cur.execute("SELECT paused FROM projects WHERE id = ?", (pid,))
+        row = cur.fetchone()
+    return jsonify({"ok": True, "paused": row["paused"] if row else 0})
 
 
 @app.route("/project/<int:pid>/star", methods=["POST"])

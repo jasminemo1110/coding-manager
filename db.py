@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS projects (
     online_url TEXT,
     online_status INTEGER NOT NULL DEFAULT 0,
     tracks_deployment INTEGER NOT NULL DEFAULT 0,
+    paused INTEGER NOT NULL DEFAULT 0,
     excluded_from_scan INTEGER NOT NULL DEFAULT 0,
     sort_order INTEGER NOT NULL DEFAULT 0,
     repo_snapshot TEXT,
@@ -180,6 +181,13 @@ def init_db():
             cur.execute(
                 "UPDATE projects SET tracks_deployment = 1 "
                 "WHERE (online_url IS NOT NULL AND online_url != '') OR online_status = 1"
+            )
+        if "paused" not in cols:
+            # 「暂停中」是叠加在阶段上的状态，不是第六个阶段——项目停在哪一步得保留下来
+            cur.execute("ALTER TABLE projects ADD COLUMN paused INTEGER NOT NULL DEFAULT 0")
+            # 短暂存在过的 stage='paused'（当时按阶段做的）：转成标记，阶段回落到「推进中」
+            cur.execute(
+                "UPDATE projects SET paused = 1, stage = 'in_progress' WHERE stage = 'paused'"
             )
         # daily_logs checklist columns
         cur.execute("PRAGMA table_info(daily_logs)")
@@ -415,8 +423,7 @@ STAGE_LABELS = {
     "in_progress": "推进中",
     "mvp_done": "初步完成",
     "polishing": "进阶优化中",
-    "paused": "暂停中",
 }
-STAGE_ORDER = ["sprout", "plan", "in_progress", "mvp_done", "polishing", "paused"]
+STAGE_ORDER = ["sprout", "plan", "in_progress", "mvp_done", "polishing"]
 
 PRESET_CATEGORIES = ["Skill", "公开网站", "工作", "自用", "生活"]

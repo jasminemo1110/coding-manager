@@ -835,7 +835,32 @@ code { font-family: 'JetBrains Mono', SFMono-Regular, Menlo, monospace; font-siz
 .stage-in_progress { background-color: var(--amber-soft); color: var(--amber); }
 .stage-mvp_done { background-color: #DCE7F0; color: #3A5C7D; }
 .stage-polishing { background-color: #EDE3F0; color: #6E4D85; }
-.stage-paused { background-color: #E8E5DE; color: #6B675C; }
+
+/* 「暂停中」叠加在阶段上，不是阶段本身——所以是阶段 chip 旁边的独立开关 */
+.pause-btn {
+  font-size: 0.72rem;
+  line-height: 1;
+  padding: 0.3rem 0.5rem;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--line-strong);
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+  flex: none;
+}
+.pause-btn:hover { background: var(--line); color: var(--ink-soft); }
+.pause-btn.on {
+  background: #E8E5DE;
+  color: #6B675C;
+  border-color: #D8D2C5;
+  padding: 0.28rem 0.55rem;
+}
+.pause-btn.on:hover { background: #DFDBD2; color: #4F4C44; }
+/* 暂停的项目退到视觉后景，但不隐藏 */
+.card.paused { opacity: 0.66; }
+.card.paused:hover { opacity: 1; }
 
 .badges {
   display: flex;

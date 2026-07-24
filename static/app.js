@@ -380,7 +380,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Card navigation (card is a div now) — navigate unless click hit an interactive child
   document.querySelectorAll('.card[data-href]').forEach(card => {
     card.addEventListener('click', (e) => {
-      if (e.target.closest('.stage-select, .star-btn, .category-picker, .badge[data-href]')) return;
+      if (e.target.closest('.stage-select, .star-btn, .pause-btn, .category-picker, .badge[data-href]')) return;
       window.location.href = card.dataset.href;
     });
   });
@@ -397,6 +397,25 @@ document.addEventListener('DOMContentLoaded', () => {
           btn.classList.toggle('starred', on);
           const card = btn.closest('.card');
           if (card) card.classList.toggle('starred', on);
+        }
+      } catch (e) { /* ignore */ }
+    });
+  });
+
+  // Pause toggle — 叠加在阶段上的状态，切换时不动 stage
+  document.querySelectorAll('.pause-btn[data-url]').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      try {
+        const r = await fetch(btn.dataset.url, { method: 'POST' });
+        const data = await r.json();
+        if (data.ok) {
+          const on = !!data.paused;
+          btn.classList.toggle('on', on);
+          btn.textContent = on ? btn.dataset.labelOn : btn.dataset.labelOff;
+          btn.title = on ? '恢复推进（阶段不变）' : '标记为暂停中（阶段不变）';
+          const card = btn.closest('.card');
+          if (card) card.classList.toggle('paused', on);
         }
       } catch (e) { /* ignore */ }
     });

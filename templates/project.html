@@ -7,6 +7,11 @@
     <a class="back" href="{{ url_for('dashboard') }}">← 项目</a>
     <div class="title-row">
       <h1>{{ p.name }}</h1>
+      <button type="button" class="pause-btn {% if p.paused %}on{% endif %}"
+              data-url="{{ url_for('project_pause_toggle', pid=p.id) }}"
+              data-label-on="暂停中" data-label-off="❙❙ 暂停"
+              title="{% if p.paused %}恢复推进（阶段不变）{% else %}标记为暂停中（阶段不变）{% endif %}"
+              >{% if p.paused %}暂停中{% else %}❙❙ 暂停{% endif %}</button>
     </div>
     <p class="muted small">
       {% if p.path %}<code>{{ p.path }}</code>{% else %}<em>想法阶段 · 暂无路径</em>{% endif %}
@@ -271,6 +276,7 @@
         {% for s in stage_order %}<option value="{{ s }}" {% if p.stage == s %}selected{% endif %}>{{ stage_labels[s] }}</option>{% endfor %}
       </select>
     </label>
+    <label class="check"><input type="checkbox" name="paused" {% if p.paused %}checked{% endif %}> 暂停中（停在上面这个阶段，不改变阶段本身）</label>
     <fieldset class="cat-checkboxes">
       <legend>分类标签（可多选）</legend>
       {% for c in categories %}
