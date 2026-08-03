@@ -179,6 +179,9 @@ def enrich_project(p, live=False):
         if p.get("path"):
             save_repo_snapshot(p["id"], info)
     p["live"] = info
+    # 手动指定的创建日期优先于 git 第一条 commit：有的项目在建仓之前就开始了
+    # （比如先在网页聊天框里写脚本），git 记不住那段时间
+    p["created_date"] = p.get("created_override") or info.get("first_commit_date")
     p["stage_label"] = db.STAGE_LABELS.get(p.get("stage"), p.get("stage"))
     p["media_count"] = media_count(p["id"])
     p["media_items"] = media_for_project(p["id"])
@@ -414,7 +417,8 @@ def dashboard():
         ]
 
     def first_commit(p):
-        return (p.get("live") or {}).get("first_commit_date") or ""
+        # 跟卡片上显示的「创建」保持一致：手动指定的日期优先
+        return p.get("created_date") or ""
 
     def last_commit(p):
         return (p.get("live") or {}).get("last_commit_date") or ""
@@ -728,7 +732,8 @@ def project_update(pid):
     with db.cursor() as cur:
         cur.execute(
             "UPDATE projects SET name=?, path=?, stage=?, paused=?, online_url=?, online_status=?, "
-            "tracks_deployment=?, github_repo=?, github_visibility=?, github_repo_public=? WHERE id=?",
+            "tracks_deployment=?, github_repo=?, github_visibility=?, github_repo_public=?, "
+            "created_override=? WHERE id=?",
             (
                 request.form.get("name", p["name"]).strip(),
                 (request.form.get("path") or "").strip() or None,
@@ -740,6 +745,7 @@ def project_update(pid):
                 new_repo,
                 visibility,
                 new_repo_public,
+                (request.form.get("created_override") or "").strip() or None,
                 pid,
             ),
         )

@@ -182,6 +182,10 @@ def init_db():
                 "UPDATE projects SET tracks_deployment = 1 "
                 "WHERE (online_url IS NOT NULL AND online_url != '') OR online_status = 1"
             )
+        if "created_override" not in cols:
+            # 手动指定的创建日期：git 第一条 commit 之前就存在的项目（在网页聊天框里起步、
+            # 后来才建仓）用它盖住 first_commit_date。留空 = 照旧用 git 算出来的日期
+            cur.execute("ALTER TABLE projects ADD COLUMN created_override TEXT")
         if "paused" not in cols:
             # 「暂停中」是叠加在阶段上的状态，不是第六个阶段——项目停在哪一步得保留下来
             cur.execute("ALTER TABLE projects ADD COLUMN paused INTEGER NOT NULL DEFAULT 0")

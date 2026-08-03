@@ -198,7 +198,7 @@
       </div>
       {% if p.live and p.live.last_commit_date %}
       <p class="muted small">
-        {% if p.live.first_commit_date %}创建 {{ p.live.first_commit_date }} · {% endif %}最近更新 {{ p.live.last_commit_date }}
+        {% if p.created_date %}创建 {{ p.created_date }} · {% endif %}最近更新 {{ p.live.last_commit_date }}
       </p>
       {% elif not p.path %}
       <p class="muted small">想法阶段 · 暂无路径</p>

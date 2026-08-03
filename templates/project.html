@@ -285,6 +285,9 @@
       <span class="muted small">去「设置」里添加分类</span>
       {% endfor %}
     </fieldset>
+    <label>创建日期（留空 = 用 git 第一条 commit 的日期{% if p.live and p.live.first_commit_date %}，即 {{ p.live.first_commit_date }}{% endif %}）
+      <input type="date" name="created_override" value="{{ p.created_override or '' }}">
+    </label>
     <label>上线 URL <input type="url" name="online_url" value="{{ p.online_url or '' }}"></label>
     <label class="check"><input type="checkbox" name="online_status" {% if p.online_status %}checked{% endif %}> 当前在线</label>
     <label class="check"><input type="checkbox" name="tracks_deployment" {% if p.tracks_deployment %}checked{% endif %}> 追踪部署（每日清单显示"部署"一项）</label>

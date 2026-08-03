@@ -50,7 +50,8 @@ backups/           # iCloud 不可用时的备份退路，不入库
 projects        -- id, name, path, github_repo, github_visibility, github_repo_public,
                 -- stage, category(legacy迁完留空), description, online_url, online_status,
                 -- tracks_deployment, starred, paused, excluded_from_scan,
-                -- repo_snapshot (JSON, get_repo_info 的落库快照), repo_snapshot_at, ...
+                -- repo_snapshot (JSON, get_repo_info 的落库快照), repo_snapshot_at,
+                -- created_override (手动指定的创建日期，留空=用 git 第一条 commit), ...
 project_categories  -- 多对多：(project_id, category_id)
 categories          -- id, name, sort_order
 
@@ -165,6 +166,12 @@ iterations      -- 历史遗留，已迁入 daily_logs 的清单字段。表保�
 
 ### 端口
 默认 8765。曾经用过 5173 撞过用户其它项目，**不要改回去**。
+
+### 创建日期
+- 卡片上的「创建」默认是 **git 第一条 commit 的日期**（`scanner.get_repo_info` 里 `git log --reverse` 取首行），不是"第一次被扫到"的时间
+- 有的项目在建仓之前就开始了（例如先在 claude.ai 网页聊天框里写脚本），git 记不住那段时间 → `projects.created_override` 手动指定，留空回落 git 日期
+- **`enrich_project` 里算好 `p["created_date"]`（override 优先），卡片显示和 `sort=created` 排序都读它**，别在模板里各写各的，否则显示和排序会对不上
+- 入口：项目页编辑面板的日期输入框，label 里带上 git 算出来的日期做参照
 
 ### 阶段 vs 暂停
 - **阶段**（`projects.stage`）是 5 选 1 的进度位置：萌芽 / Plan / 推进中 / 初步完成 / 进阶优化中，`db.STAGE_ORDER` + `STAGE_LABELS` 是唯一来源，看板卡片下拉、项目页编辑、筛选 chip 全从这两个常量渲染
