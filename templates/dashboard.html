@@ -169,6 +169,11 @@
   {% for key, label in [('stage','按阶段'),('created','按创建时间'),('updated','按最近更新')] %}
     <a href="{{ url_for('dashboard', stage=stage_filter_str, category=category_filter_str, sort=key, status=status_filter) }}" class="chip {% if sort_by==key %}active{% endif %}">{{ label }}</a>
   {% endfor %}
+  <span class="filter-group" style="margin-left:1.5rem">
+    <span class="filter-label">显示列：</span>
+    <button type="button" class="chip chip-btn" data-col-toggle="media">自媒体</button>
+    <button type="button" class="chip chip-btn" data-col-toggle="todos">待办</button>
+  </span>
 </div>
 
 <div class="project-rows">

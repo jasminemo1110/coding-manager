@@ -154,6 +154,30 @@ document.addEventListener('DOMContentLoaded', () => {
     sel.dataset.previous = sel.value;
   });
 
+  // 看板列折叠（自媒体 / 待办）：纯前端偏好，class 挂 <html>、状态存 localStorage。
+  // 不走 query string——否则每个看板链接和 redirect_to 都得手动带上（见 status 筛选的教训）。
+  const colToggles = document.querySelectorAll('[data-col-toggle]');
+  if (colToggles.length) {
+    const COL_KEY = { media: 'hideMediaCol', todos: 'hideTodoCol' };
+    const COL_CLASS = { media: 'hide-media', todos: 'hide-todos' };
+    const syncColToggles = () => {
+      colToggles.forEach(btn => {
+        const hidden = document.documentElement.classList.contains(COL_CLASS[btn.dataset.colToggle]);
+        btn.classList.toggle('active', !hidden);
+        btn.title = hidden ? '点击展开这一列' : '点击折叠这一列';
+      });
+    };
+    colToggles.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const key = btn.dataset.colToggle;
+        const hidden = document.documentElement.classList.toggle(COL_CLASS[key]);
+        try { localStorage.setItem(COL_KEY[key], hidden ? '1' : '0'); } catch (e) {}
+        syncColToggles();
+      });
+    });
+    syncColToggles();
+  }
+
   // Project / global todo checkboxes (project columns + top panel)
   document.querySelectorAll('input[type=checkbox][data-todo-toggle]').forEach(cb => {
     cb.addEventListener('change', async () => {

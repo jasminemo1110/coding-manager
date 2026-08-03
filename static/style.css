@@ -481,6 +481,8 @@ code { font-family: 'JetBrains Mono', SFMono-Regular, Menlo, monospace; font-siz
   align-items: center;
 }
 .filter-label { color: var(--muted); font-size: 0.85rem; }
+/* 一组「标签 + 若干 chip」整体换行，不会把标签落单在上一行行尾 */
+.filter-group { display: inline-flex; align-items: center; gap: 0.4rem; }
 .chip {
   display: inline-block;
   padding: 0.3rem 0.85rem;
@@ -492,6 +494,7 @@ code { font-family: 'JetBrains Mono', SFMono-Regular, Menlo, monospace; font-siz
   text-decoration: none;
 }
 .chip:hover { background: var(--line); text-decoration: none; }
+.chip-btn { font: inherit; font-size: 0.85rem; cursor: pointer; }
 .chip.active {
   background: var(--ink);
   color: var(--paper);
@@ -510,8 +513,25 @@ code { font-family: 'JetBrains Mono', SFMono-Regular, Menlo, monospace; font-siz
   gap: 1rem;
   align-items: stretch;
 }
+/* 列折叠：偏好存 localStorage，class 挂在 <html> 上（base.html 头部内联脚本先打上，避免闪一下三列） */
+html.hide-media .media-col,
+html.hide-todos .todo-col { display: none; }
+/* 折叠一列时把腾出的宽度给留下的那列，不给项目卡片——卡片被 stretch 拉到整行高，
+   一变宽就是一大块空白；待办/自媒体变宽反而每条能一行读完 */
+html.hide-media .project-row,
+html.hide-todos .project-row { grid-template-columns: 300px minmax(0, 1fr); }
+/* 全折叠 = 最简总览：project-row 这层壳 display:contents，让卡片直接掉进外层网格，同行自动等高 */
+html.hide-media.hide-todos .project-rows {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+}
+html.hide-media.hide-todos .project-row { display: contents; }
+html.hide-media.hide-todos .project-rows > .empty { grid-column: 1 / -1; }
+/* 必须放在折叠规则之后：同特异性下靠源码顺序取胜，否则窄屏折叠时仍是两列 */
 @media (max-width: 980px) {
-  .project-row { grid-template-columns: 1fr; }
+  .project-row,
+  html.hide-media .project-row,
+  html.hide-todos .project-row { grid-template-columns: 1fr; }
 }
 /* left column = "core": tinted so it visually stands apart from the branch columns */
 .project-col { display: flex; flex-direction: column; }

@@ -179,6 +179,14 @@ iterations      -- 历史遗留，已迁入 daily_logs 的清单字段。表保�
 - **自媒体卡片头部的 chip 直接可编辑**：状态用 `<select class="chip-select">` 长得像 chip 但可下拉；发布时间用 span 包 `<input type="date">` + `onclick` 调 `showPicker()`（旧浏览器降级 focus+click）。两者都打到部分更新路由 `/media/<id>/update`——只写传过来的字段，避免覆盖别的列。所以编辑面板只保留标题/类型/备注，状态/发布时间从面板移除避免重复。
 - **媒体备注 line-clamp 是 4 行**（项目笔记还是 3 行），独立的 `.media-note-clip` 类覆盖。复用同一套 `note-body-clip` + `is-clipped` + `#note-modal` 机制。
 
+### 看板列折叠（自媒体 / 待办）
+- 筛选栏「显示列：」两个 chip 开关（`[data-col-toggle]`），折叠后 `<html>` 上挂 `.hide-media` / `.hide-todos`
+- **状态存 localStorage（`hideMediaCol` / `hideTodoCol`），不走 query string**——折叠是「这台机器上想怎么看」的偏好，不是页面内容；走 query string 就得像 `status` 那样在每个看板链接和 `redirect_to` 里手动传，漏一个就丢
+- `base.html` 的 `<head>` 里有段内联脚本先把 class 打上，**必须在 body 渲染前**，否则会闪一下完整三列。app.js 里 `syncColToggles()` 反过来按 `<html>` 的 class 同步 chip 的 active 态
+- 折叠一列时腾出的宽度给**留下的那列**，不给项目卡片：卡片被 `align-items: stretch` 拉到整行高，一变宽就是一大块空白
+- 全折叠 = 最简总览：`.project-rows` 变 grid（`repeat(auto-fill, minmax(300px, 1fr))`）、`.project-row` 这层壳 `display: contents`，卡片直接掉进外层网格，同行自动等高
+- **窄屏那条 `@media (max-width: 980px)` 必须写在折叠规则之后**——同特异性靠源码顺序取胜，放前面的话窄屏折叠时仍是两列
+
 ## 数据库迁移惯例
 
 所有迁移在 `db.init_db()` 里，**幂等**：

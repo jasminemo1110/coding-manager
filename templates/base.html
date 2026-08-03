@@ -9,6 +9,16 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Source+Serif+4:wght@500;600&family=Noto+Sans+SC:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+<script>
+  // 看板列折叠偏好：必须在 body 渲染前打上 class，否则会先闪一下完整三列再折叠
+  (function () {
+    try {
+      var r = document.documentElement;
+      if (localStorage.getItem('hideMediaCol') === '1') r.classList.add('hide-media');
+      if (localStorage.getItem('hideTodoCol') === '1') r.classList.add('hide-todos');
+    } catch (e) {}
+  })();
+</script>
 </head>
 <body>
 <div class="site-banner">
