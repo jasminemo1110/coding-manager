@@ -55,5 +55,6 @@ def test_get_repo_info_basics(repo):
     info = scanner.get_repo_info(str(repo))
     assert info["first_commit_date"] == iso(3)
     assert info["last_commit_date"] == iso(1)
+    assert info["last_commit_at"].startswith(f"{iso(1)}T12:00:00")
     assert info["last_commit_msg"] == "最后一条"
     assert info["has_claudemd"] is True

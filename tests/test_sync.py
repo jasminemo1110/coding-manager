@@ -252,13 +252,37 @@ def test_default_disabled_for():
 
 def test_enrich_reads_snapshot_without_scanning(test_db, monkeypatch):
     pid = add_project(test_db, "proj", "/nonexistent")
-    app.save_repo_snapshot(pid, {"unpushed_count": 7, "last_commit_date": "2026-01-01"})
+    app.save_repo_snapshot(pid, {
+        "unpushed_count": 7,
+        "last_commit_date": "2026-01-01",
+        "last_commit_at": "2026-01-01T12:00:00+08:00",
+    })
     monkeypatch.setattr(
         app.scanner, "get_repo_info",
         lambda path: pytest.fail("有快照时不该现场扫 git"),
     )
     enriched = app.enrich_project(app.get_project(pid))
     assert enriched["live"]["unpushed_count"] == 7
+
+
+def test_enrich_upgrades_snapshot_without_full_commit_time(test_db, repo, monkeypatch):
+    make_commit(repo, "a.txt", "x", iso(0))
+    pid = add_project(test_db, "proj", repo)
+    app.save_repo_snapshot(pid, {"last_commit_date": iso(0), "unpushed_count": 7})
+    original_get_repo_info = app.scanner.get_repo_info
+    calls = []
+
+    def scan(path):
+        calls.append(path)
+        return original_get_repo_info(path)
+
+    monkeypatch.setattr(app.scanner, "get_repo_info", scan)
+    enriched = app.enrich_project(app.get_project(pid))
+    assert calls == [str(repo)]
+    assert enriched["live"]["last_commit_at"].startswith(iso(0))
+    with test_db.cursor() as cur:
+        cur.execute("SELECT repo_snapshot FROM projects WHERE id=?", (pid,))
+        assert json.loads(cur.fetchone()["repo_snapshot"])["last_commit_at"]
 
 
 def test_enrich_scans_and_persists_when_no_snapshot(test_db, repo):
@@ -269,6 +293,28 @@ def test_enrich_scans_and_persists_when_no_snapshot(test_db, repo):
     with test_db.cursor() as cur:  # 并且回写了
         cur.execute("SELECT repo_snapshot FROM projects WHERE id=?", (pid,))
         assert json.loads(cur.fetchone()["repo_snapshot"])["unpushed_count"] == 1
+
+
+def test_dashboard_sorts_same_day_by_full_commit_time(test_db, monkeypatch):
+    older = add_project(test_db, "coding-dashboard", "/nonexistent-older")
+    newer = add_project(test_db, "mobai-board", "/nonexistent-newer")
+    app.save_repo_snapshot(older, {
+        "last_commit_date": "2026-08-03",
+        "last_commit_at": "2026-08-03T17:35:11+08:00",
+    })
+    app.save_repo_snapshot(newer, {
+        "last_commit_date": "2026-08-03",
+        "last_commit_at": "2026-08-03T19:51:07+08:00",
+    })
+    monkeypatch.setattr(app, "scan_suggestions", lambda: [])
+    monkeypatch.setattr(
+        app,
+        "render_template",
+        lambda template, **context: [p["name"] for p in context["projects"]],
+    )
+
+    with app.app.test_request_context("/?sort=updated"):
+        assert app.dashboard()[:2] == ["mobai-board", "coding-dashboard"]
 
 
 # ---------- 后台同步：全局单槽位 ----------

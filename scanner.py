@@ -74,6 +74,7 @@ def get_repo_info(path):
         "remote_url": None,
         "github_repo": None,
         "last_commit_date": None,
+        "last_commit_at": None,
         "last_commit_msg": None,
         "first_commit_date": None,
         "has_claudemd": False,
@@ -90,10 +91,11 @@ def get_repo_info(path):
         info["remote_url"] = remote
         info["github_repo"] = parse_github_repo(remote)
 
-    last, _ = run(["git", "log", "-1", "--format=%ci|%s"], cwd=path)
+    last, _ = run(["git", "log", "-1", "--format=%cI|%s"], cwd=path)
     if last and "|" in last:
         d, msg = last.split("|", 1)
         info["last_commit_date"] = d[:10]
+        info["last_commit_at"] = d
         info["last_commit_msg"] = msg
 
     first, _ = run(["git", "log", "--format=%ci", "--reverse"], cwd=path, timeout=15)

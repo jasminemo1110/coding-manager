@@ -174,7 +174,14 @@ def enrich_project(p, live=False):
             info = json.loads(p["repo_snapshot"])
         except Exception:
             info = None
-    if info is None:
+    # 旧快照只存到日期。首次读到时补扫并回写，之后同日项目才能按真实提交时间排序。
+    snapshot_needs_upgrade = (
+        info is not None
+        and p.get("path")
+        and info.get("last_commit_date")
+        and "last_commit_at" not in info
+    )
+    if info is None or snapshot_needs_upgrade:
         info = scanner.get_repo_info(p["path"]) if p.get("path") else {}
         if p.get("path"):
             save_repo_snapshot(p["id"], info)
@@ -421,13 +428,19 @@ def dashboard():
         return p.get("created_date") or ""
 
     def last_commit(p):
-        return (p.get("live") or {}).get("last_commit_date") or ""
+        live = p.get("live") or {}
+        value = live.get("last_commit_at") or live.get("last_commit_date")
+        if not value:
+            return float("-inf")
+        try:
+            return datetime.fromisoformat(value).timestamp()
+        except (TypeError, ValueError):
+            return float("-inf")
 
     if sort_by == "created":
         # projects with no code (no first commit) sink to the bottom
         enriched.sort(key=lambda p: (first_commit(p) == "", first_commit(p)))
     elif sort_by == "updated":
-        enriched.sort(key=lambda p: (last_commit(p) == "", last_commit(p)), reverse=False)
         enriched.sort(key=lambda p: last_commit(p), reverse=True)
     else:  # stage
         order = {s: i for i, s in enumerate(db.STAGE_ORDER)}
