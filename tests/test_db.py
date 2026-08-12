@@ -8,6 +8,9 @@ from datetime import datetime
 def test_init_db_idempotent(test_db):
     test_db.init_db()  # 第二次跑不该报错、不该重复迁移
     with test_db.cursor() as cur:
+        cur.execute("PRAGMA table_info(projects)")
+        project_columns = {row["name"] for row in cur.fetchall()}
+        assert {"log_start_date", "forked_from"} <= project_columns
         cur.execute("SELECT COUNT(*) AS c FROM categories")
         assert cur.fetchone()["c"] == len(test_db.PRESET_CATEGORIES)
 

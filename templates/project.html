@@ -15,15 +15,16 @@
     </div>
     <p class="muted small">
       {% if p.path %}<code>{{ p.path }}</code>{% else %}<em>想法阶段 · 暂无路径</em>{% endif %}
-      {% if p.github_repo %} · <a href="https://github.com/{{ p.github_repo }}" target="_blank">🔒 私有</a>{% endif %}
+      {% if p.forked_from %} · <a class="fork-source" href="https://github.com/{{ p.forked_from }}" target="_blank" rel="noopener">⑂ Fork 自 {{ p.forked_from }}</a>{% endif %}
+      {% if p.github_repo %} · <a href="https://github.com/{{ p.github_repo }}" target="_blank">{% if p.github_visibility == 'public' %}🌱 开源{% elif p.github_visibility == 'private' %}🔒 私有{% else %}GitHub{% endif %}</a>{% endif %}
       {% if p.github_repo_public %} · <a href="https://github.com/{{ p.github_repo_public }}" target="_blank">🌱 开源</a>{% endif %}
       {% if p.online_url %} · <a href="{{ p.online_url }}" target="_blank">线上</a>{% endif %}
     </p>
   </div>
   <div class="head-actions">
     <button class="btn" id="project-sync-btn" data-url="{{ url_for('sync_today_one', pid=p.id) }}" data-status-url="{{ url_for('sync_status') }}" title="补齐上次同步至今每一天有改动但还没生成摘要的日子">🔄 同步到最新</button>
-    <button class="btn" id="project-history-btn" data-url="{{ url_for('sync_history_one', pid=p.id) }}">📥 导入历史</button>
-    {% if p.github_repo %}
+    <button class="btn" id="project-history-btn" data-url="{{ url_for('sync_history_one', pid=p.id) }}" title="导入日志起始日期之后的历史 commit">📥 导入历史</button>
+    {% if p.github_repo or p.github_repo_public %}
     <button class="btn" id="refresh-github-btn" data-url="{{ url_for('project_refresh_github', pid=p.id) }}" title="重新检测 GitHub 仓库的公开/私有状态">🔄 刷新 GitHub</button>
     {% endif %}
     <a class="btn" href="{{ url_for('export_project', pid=p.id) }}" download>⬇ 导出</a>
@@ -271,6 +272,9 @@
     <label>本地路径 <input type="text" name="path" value="{{ p.path or '' }}"></label>
     <label>GitHub 私有仓库（user/repo）<input type="text" name="github_repo" value="{{ p.github_repo or '' }}" placeholder="jasminemo1110/Drive"></label>
     <label>GitHub 公开仓库（开源镜像，user/repo）<input type="text" name="github_repo_public" value="{{ p.github_repo_public or '' }}" placeholder="留空 = 仅有私有仓库"></label>
+    <label>Fork 来源（user/repo；GitHub 或本地 upstream 可自动识别）
+      <input type="text" name="forked_from" value="{{ p.forked_from or '' }}" placeholder="zarazhangrui/youtube-digest">
+    </label>
     <label>阶段
       <select name="stage">
         {% for s in stage_order %}<option value="{{ s }}" {% if p.stage == s %}selected{% endif %}>{{ stage_labels[s] }}</option>{% endfor %}
@@ -287,6 +291,10 @@
     </fieldset>
     <label>创建日期（留空 = 用 git 第一条 commit 的日期{% if p.live and p.live.first_commit_date %}，即 {{ p.live.first_commit_date }}{% endif %}）
       <input type="date" name="created_override" value="{{ p.created_override or '' }}">
+    </label>
+    <label>日志起始日期（此前日志会隐藏但不会删除）
+      <input type="date" name="log_start_date" value="{{ p.log_start_date or '' }}" max="{{ today }}">
+      <span class="muted small">Fork 项目建议设为你开始修改的日期；清空即可恢复全部历史。</span>
     </label>
     <label>上线 URL <input type="url" name="online_url" value="{{ p.online_url or '' }}"></label>
     <label class="check"><input type="checkbox" name="online_status" {% if p.online_status %}checked{% endif %}> 当前在线</label>

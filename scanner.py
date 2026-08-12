@@ -66,6 +66,15 @@ def parse_github_repo(remote_url):
     return None
 
 
+def normalize_github_repo(value):
+    """Accept either owner/repo or a GitHub remote/URL and return owner/repo."""
+    if not value:
+        return None
+    value = value.strip()
+    parsed = parse_github_repo(value)
+    return parsed or value.strip("/").removesuffix(".git")
+
+
 def get_repo_info(path):
     """Pull all interesting git/file info about a repo."""
     info = {
@@ -73,6 +82,8 @@ def get_repo_info(path):
         "name": os.path.basename(path),
         "remote_url": None,
         "github_repo": None,
+        "upstream_url": None,
+        "upstream_repo": None,
         "last_commit_date": None,
         "last_commit_at": None,
         "last_commit_msg": None,
@@ -90,6 +101,11 @@ def get_repo_info(path):
     if remote:
         info["remote_url"] = remote
         info["github_repo"] = parse_github_repo(remote)
+
+    upstream, _ = run(["git", "config", "--get", "remote.upstream.url"], cwd=path)
+    if upstream:
+        info["upstream_url"] = upstream
+        info["upstream_repo"] = parse_github_repo(upstream)
 
     last, _ = run(["git", "log", "-1", "--format=%cI|%s"], cwd=path)
     if last and "|" in last:
@@ -363,8 +379,9 @@ def ping_url(url, timeout=5):
         return False
 
 
-def github_visibility(repo_slug, token=None):
-    """Return 'public' / 'private' / None."""
+def github_repo_metadata(repo_slug, token=None):
+    """Return repository visibility and fork source, or None when GitHub is unavailable."""
+    repo_slug = normalize_github_repo(repo_slug)
     if not repo_slug:
         return None
     try:
@@ -374,9 +391,22 @@ def github_visibility(repo_slug, token=None):
             headers["Authorization"] = f"Bearer {token}"
         r = requests.get(f"https://api.github.com/repos/{repo_slug}", headers=headers, timeout=5)
         if r.status_code == 200:
-            return "private" if r.json().get("private") else "public"
+            data = r.json()
+            source = data.get("source") or data.get("parent") or {}
+            return {
+                "visibility": "private" if data.get("private") else "public",
+                "forked_from": source.get("full_name") if data.get("fork") else None,
+            }
         if r.status_code == 404:
-            return "private"  # 404 usually means private without auth
+            # 未带权限访问私有仓库通常是 404；这时只能保留原有的可见性推断，
+            # 不能判断 fork 来源
+            return {"visibility": "private", "forked_from": None}
     except Exception:
         pass
     return None
+
+
+def github_visibility(repo_slug, token=None):
+    """Backward-compatible visibility-only wrapper."""
+    metadata = github_repo_metadata(repo_slug, token)
+    return metadata.get("visibility") if metadata else None

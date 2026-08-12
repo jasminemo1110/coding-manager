@@ -139,9 +139,11 @@ def latest_log_with_commits(pid):
     """Most recent daily log that actually has commits (skips empty placeholder rows)."""
     with db.cursor() as cur:
         cur.execute(
-            "SELECT * FROM daily_logs WHERE project_id = ? "
+            "SELECT dl.* FROM daily_logs dl JOIN projects p ON p.id = dl.project_id "
+            "WHERE dl.project_id = ? "
+            "AND (p.log_start_date IS NULL OR p.log_start_date = '' OR dl.date >= p.log_start_date) "
             "AND raw_commits_json IS NOT NULL AND raw_commits_json != '' AND raw_commits_json != '[]' "
-            "ORDER BY date DESC LIMIT 1",
+            "ORDER BY dl.date DESC LIMIT 1",
             (pid,),
         )
         row = cur.fetchone()
@@ -278,11 +280,12 @@ def _day_commit_index(since_iso=None):
     with db.cursor() as cur:
         sql = (
             "SELECT dl.date AS d, p.name AS name, dl.raw_commits_json AS rcj FROM daily_logs dl "
-            "JOIN projects p ON p.id = dl.project_id"
+            "JOIN projects p ON p.id = dl.project_id "
+            "WHERE (p.log_start_date IS NULL OR p.log_start_date = '' OR dl.date >= p.log_start_date)"
         )
         params = []
         if since_iso:
-            sql += " WHERE dl.date >= ?"
+            sql += " AND dl.date >= ?"
             params.append(since_iso)
         cur.execute(sql + " ORDER BY dl.date", params)
         rows = cur.fetchall()
@@ -496,10 +499,21 @@ def project_add():
     if not name:
         flash("项目名不能为空")
         return redirect(url_for("dashboard"))
+    log_start_date = date.today().isoformat()
+    info = scanner.get_repo_info(path) if path else {}
+    github_repo = info.get("github_repo")
+    metadata = scanner.github_repo_metadata(
+        github_repo, db.get_setting("github_token")
+    ) if github_repo else None
     with db.cursor() as cur:
         cur.execute(
-            "INSERT INTO projects (name, path, stage, online_url) VALUES (?, ?, ?, ?)",
-            (name, path, stage, online_url),
+            "INSERT INTO projects (name, path, stage, online_url, log_start_date, "
+            "github_repo, github_visibility, forked_from) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                name, path, stage, online_url, log_start_date, github_repo,
+                metadata.get("visibility") if metadata else None,
+                (metadata.get("forked_from") if metadata else None) or info.get("upstream_repo"),
+            ),
         )
         new_id = cur.lastrowid
         for cid in category_ids:
@@ -518,14 +532,19 @@ def project_add_from_scan():
     name = os.path.basename(path)
     info = scanner.get_repo_info(path)
     github_token = db.get_setting("github_token")
-    visibility = None
-    if info.get("github_repo"):
-        visibility = scanner.github_visibility(info["github_repo"], github_token)
+    metadata = scanner.github_repo_metadata(info.get("github_repo"), github_token)
+    visibility = metadata.get("visibility") if metadata else None
+    forked_from = (
+        metadata.get("forked_from") if metadata else None
+    ) or info.get("upstream_repo")
     with db.cursor() as cur:
         cur.execute(
-            "INSERT INTO projects (name, path, github_repo, github_visibility, stage) "
-            "VALUES (?, ?, ?, ?, 'in_progress')",
-            (name, path, info.get("github_repo"), visibility),
+            "INSERT INTO projects (name, path, github_repo, github_visibility, forked_from, "
+            "log_start_date, stage) VALUES (?, ?, ?, ?, ?, ?, 'in_progress')",
+            (
+                name, path, info.get("github_repo"), visibility, forked_from,
+                date.today().isoformat(),
+            ),
         )
         new_id = cur.lastrowid
     save_repo_snapshot(new_id, info)
@@ -554,7 +573,9 @@ def project_detail(pid):
     enriched = enrich_project(p, live=True)
     with db.cursor() as cur:
         cur.execute(
-            "SELECT * FROM daily_logs WHERE project_id = ? ORDER BY date DESC", (pid,)
+            "SELECT * FROM daily_logs WHERE project_id = ? "
+            "AND (? IS NULL OR ? = '' OR date >= ?) ORDER BY date DESC",
+            (pid, p.get("log_start_date"), p.get("log_start_date"), p.get("log_start_date")),
         )
         logs = [dict(r) for r in cur.fetchall()]
         for log in logs:
@@ -613,6 +634,7 @@ def project_detail(pid):
         categories=all_categories(),
         check_labels=CHECK_LABELS,
         check_fields=CHECK_FIELDS,
+        today=today,
     )
 
 
@@ -733,23 +755,34 @@ def project_update(pid):
     p = get_project(pid)
     if not p:
         abort(404)
-    new_repo = (request.form.get("github_repo") or "").strip() or None
-    new_repo_public = (request.form.get("github_repo_public") or "").strip() or None
-    # Always re-check visibility on save — handles stale data without forcing the user to change the field
-    if new_repo:
+    new_path = (request.form.get("path") or "").strip() or None
+    new_repo = scanner.normalize_github_repo(request.form.get("github_repo"))
+    new_repo_public = scanner.normalize_github_repo(request.form.get("github_repo_public"))
+    manual_forked_from = scanner.normalize_github_repo(request.form.get("forked_from"))
+    # 保存时重查 GitHub：自动识别 fork 来源；GitHub 暂时不可用时保留已有可见性
+    metadata = None
+    metadata_repo = new_repo or new_repo_public
+    if metadata_repo:
         token = db.get_setting("github_token")
-        visibility = scanner.github_visibility(new_repo, token)
+        metadata = scanner.github_repo_metadata(metadata_repo, token)
+        visibility = metadata.get("visibility") if metadata else p.get("github_visibility")
     else:
         visibility = None
+    local_info = scanner.get_repo_info(new_path) if new_path else {}
+    forked_from = (
+        manual_forked_from
+        or (metadata.get("forked_from") if metadata else None)
+        or local_info.get("upstream_repo")
+    )
     category_ids = request.form.getlist("category_ids")
     with db.cursor() as cur:
         cur.execute(
             "UPDATE projects SET name=?, path=?, stage=?, paused=?, online_url=?, online_status=?, "
             "tracks_deployment=?, github_repo=?, github_visibility=?, github_repo_public=?, "
-            "created_override=? WHERE id=?",
+            "created_override=?, log_start_date=?, forked_from=? WHERE id=?",
             (
                 request.form.get("name", p["name"]).strip(),
-                (request.form.get("path") or "").strip() or None,
+                new_path,
                 request.form.get("stage", p["stage"]),
                 1 if request.form.get("paused") else 0,
                 (request.form.get("online_url") or "").strip() or None,
@@ -759,6 +792,8 @@ def project_update(pid):
                 visibility,
                 new_repo_public,
                 (request.form.get("created_override") or "").strip() or None,
+                (request.form.get("log_start_date") or "").strip() or None,
+                forked_from,
                 pid,
             ),
         )
@@ -777,10 +812,21 @@ def project_refresh_github(pid):
     if not p:
         abort(404)
     token = db.get_setting("github_token")
-    vis = scanner.github_visibility(p["github_repo"], token) if p.get("github_repo") else None
+    repo_slug = p.get("github_repo") or p.get("github_repo_public")
+    metadata = scanner.github_repo_metadata(repo_slug, token) if repo_slug else None
+    vis = metadata.get("visibility") if metadata else p.get("github_visibility")
+    forked_from = metadata.get("forked_from") if metadata else None
     with db.cursor() as cur:
-        cur.execute("UPDATE projects SET github_visibility=? WHERE id=?", (vis, pid))
-    return jsonify({"ok": True, "visibility": vis})
+        cur.execute(
+            "UPDATE projects SET github_visibility=?, forked_from=COALESCE(?, forked_from) "
+            "WHERE id=?",
+            (vis, forked_from, pid),
+        )
+    return jsonify({
+        "ok": True,
+        "visibility": vis,
+        "forked_from": forked_from or p.get("forked_from"),
+    })
 
 
 @app.route("/project/<int:pid>/stage", methods=["POST"])
@@ -904,6 +950,14 @@ def _sync_start_date(pid, today):
             start = floor
     else:
         start = floor
+    with db.cursor() as cur:
+        cur.execute("SELECT log_start_date FROM projects WHERE id = ?", (pid,))
+        row = cur.fetchone()
+    if row and row["log_start_date"]:
+        try:
+            start = max(start, date.fromisoformat(row["log_start_date"]))
+        except ValueError:
+            pass
     return max(start, floor)
 
 
@@ -1001,14 +1055,17 @@ def sync_one_project(pid):
     info = scanner.get_repo_info(p["path"])
     save_repo_snapshot(pid, info)
 
-    # 顺手刷新 GitHub 可见性徽章
-    if p.get("github_repo"):
+    # 顺手刷新 GitHub 可见性和 fork 来源徽章
+    repo_slug = p.get("github_repo") or p.get("github_repo_public")
+    if repo_slug:
         token = db.get_setting("github_token")
-        vis = scanner.github_visibility(p["github_repo"], token)
-        if vis:
+        metadata = scanner.github_repo_metadata(repo_slug, token)
+        if metadata:
             with db.cursor() as cur:
                 cur.execute(
-                    "UPDATE projects SET github_visibility = ? WHERE id = ?", (vis, pid)
+                    "UPDATE projects SET github_visibility = ?, "
+                    "forked_from = COALESCE(?, forked_from) WHERE id = ?",
+                    (metadata.get("visibility"), metadata.get("forked_from"), pid),
                 )
 
     start = _sync_start_date(pid, today)
@@ -1129,6 +1186,11 @@ def sync_history_all():
         if not p.get("path"):
             continue
         by_day = scanner.get_all_commits_by_day(p["path"])
+        if p.get("log_start_date"):
+            by_day = {
+                day: commits for day, commits in by_day.items()
+                if day >= p["log_start_date"]
+            }
         with db.cursor() as cur:
             for day, commits in by_day.items():
                 total_days += 1
@@ -1149,6 +1211,11 @@ def sync_history_one(pid):
     if not p or not p.get("path"):
         return jsonify({"ok": False, "reason": "no path"})
     by_day = scanner.get_all_commits_by_day(p["path"])
+    if p.get("log_start_date"):
+        by_day = {
+            day: commits for day, commits in by_day.items()
+            if day >= p["log_start_date"]
+        }
     with db.cursor() as cur:
         for day, commits in by_day.items():
             cur.execute(
@@ -1281,8 +1348,9 @@ def project_description_generate(pid):
         with db.cursor() as cur:
             cur.execute(
                 "SELECT auto_summary FROM daily_logs WHERE project_id = ? "
+                "AND (? IS NULL OR ? = '' OR date >= ?) "
                 "AND auto_summary IS NOT NULL AND auto_summary != '' ORDER BY date DESC LIMIT 5",
-                (pid,),
+                (pid, p.get("log_start_date"), p.get("log_start_date"), p.get("log_start_date")),
             )
             context = "\n".join(r["auto_summary"] for r in cur.fetchall())
     desc = ai.describe_project(p["name"], context, cfg=ai_cfg)
@@ -1569,7 +1637,9 @@ def export_project(pid):
         abort(404)
     with db.cursor() as cur:
         cur.execute(
-            "SELECT * FROM daily_logs WHERE project_id = ? ORDER BY date DESC", (pid,)
+            "SELECT * FROM daily_logs WHERE project_id = ? "
+            "AND (? IS NULL OR ? = '' OR date >= ?) ORDER BY date DESC",
+            (pid, p.get("log_start_date"), p.get("log_start_date"), p.get("log_start_date")),
         )
         logs = [dict(r) for r in cur.fetchall()]
         cur.execute(

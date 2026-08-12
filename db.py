@@ -27,6 +27,8 @@ CREATE TABLE IF NOT EXISTS projects (
     sort_order INTEGER NOT NULL DEFAULT 0,
     repo_snapshot TEXT,
     repo_snapshot_at TEXT,
+    log_start_date TEXT,
+    forked_from TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
 );
 
@@ -186,6 +188,13 @@ def init_db():
             # 手动指定的创建日期：git 第一条 commit 之前就存在的项目（在网页聊天框里起步、
             # 后来才建仓）用它盖住 first_commit_date。留空 = 照旧用 git 算出来的日期
             cur.execute("ALTER TABLE projects ADD COLUMN created_override TEXT")
+        if "log_start_date" not in cols:
+            # 个人工作日志从哪天开始。老项目留空，继续沿用原有回看逻辑；
+            # 新加入的项目由创建路由写入当天，避免 fork 的上游历史混入个人统计
+            cur.execute("ALTER TABLE projects ADD COLUMN log_start_date TEXT")
+        if "forked_from" not in cols:
+            # GitHub fork 的原始来源（owner/repo），也允许用户为复制后另建仓的项目手填
+            cur.execute("ALTER TABLE projects ADD COLUMN forked_from TEXT")
         if "paused" not in cols:
             # 「暂停中」是叠加在阶段上的状态，不是第六个阶段——项目停在哪一步得保留下来
             cur.execute("ALTER TABLE projects ADD COLUMN paused INTEGER NOT NULL DEFAULT 0")

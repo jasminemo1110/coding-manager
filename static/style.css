@@ -901,6 +901,7 @@ html.hide-media.hide-todos .project-rows > .empty { grid-column: 1 / -1; }
 .badge[data-href] { cursor: pointer; }
 .badge-public { background: var(--green-soft); color: var(--green); border-color: #D2DDC2; }
 .badge-private { background: var(--line); color: var(--ink-soft); }
+.badge-fork { background: #F1EDFA; color: #65528F; border-color: #DDD3F0; }
 .badge-category {
   background: var(--ink);
   color: var(--paper);

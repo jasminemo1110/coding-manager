@@ -2,6 +2,8 @@
 
 from datetime import date, timedelta
 
+import requests
+
 import scanner
 from conftest import git, make_commit
 
@@ -58,3 +60,37 @@ def test_get_repo_info_basics(repo):
     assert info["last_commit_at"].startswith(f"{iso(1)}T12:00:00")
     assert info["last_commit_msg"] == "最后一条"
     assert info["has_claudemd"] is True
+
+
+def test_get_repo_info_detects_named_upstream(repo):
+    make_commit(repo, "a.txt", "x", iso(0))
+    git(repo, "remote", "add", "origin", "https://github.com/me/proj.git")
+    git(repo, "remote", "add", "upstream", "https://github.com/original/proj.git")
+    info = scanner.get_repo_info(str(repo))
+    assert info["github_repo"] == "me/proj"
+    assert info["upstream_repo"] == "original/proj"
+
+
+def test_normalize_github_repo_accepts_slug_and_url():
+    assert scanner.normalize_github_repo("me/proj") == "me/proj"
+    assert scanner.normalize_github_repo("https://github.com/me/proj.git") == "me/proj"
+    assert scanner.normalize_github_repo("git@github.com:me/proj.git") == "me/proj"
+
+
+def test_github_repo_metadata_includes_fork_source(monkeypatch):
+    class Response:
+        status_code = 200
+
+        @staticmethod
+        def json():
+            return {
+                "private": False,
+                "fork": True,
+                "parent": {"full_name": "middle/proj"},
+                "source": {"full_name": "original/proj"},
+            }
+
+    monkeypatch.setattr(requests, "get", lambda *args, **kwargs: Response())
+    metadata = scanner.github_repo_metadata("me/proj")
+    assert metadata == {"visibility": "public", "forked_from": "original/proj"}
+    assert scanner.github_visibility("me/proj") == "public"

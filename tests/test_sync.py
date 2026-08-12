@@ -79,6 +79,46 @@ def test_sync_backfills_since_watermark(test_db, repo):
     assert get_log(test_db, pid, iso(1))
 
 
+def test_log_start_date_excludes_inherited_history(test_db, repo):
+    make_commit(repo, "upstream.txt", "原作者", iso(3))
+    make_commit(repo, "mine.txt", "我的修改", iso(1))
+    pid = add_project(test_db, "fork", repo)
+    with test_db.cursor() as cur:
+        cur.execute(
+            "UPDATE projects SET log_start_date=? WHERE id=?",
+            (iso(1), pid),
+        )
+    test_db.set_setting(f"last_sync_date:{pid}", iso(4))
+
+    result = app.sync_one_project(pid)
+
+    assert result["commits"] == 1
+    assert get_log(test_db, pid, iso(3)) is None
+    assert get_log(test_db, pid, iso(1)) is not None
+
+
+def test_log_start_date_hides_retained_rows_from_stats(test_db, repo):
+    pid = add_project(test_db, "fork", repo)
+    with test_db.cursor() as cur:
+        cur.execute(
+            "UPDATE projects SET log_start_date=? WHERE id=?",
+            (iso(1), pid),
+        )
+        cur.execute(
+            "INSERT INTO daily_logs (project_id, date, raw_commits_json) VALUES (?, ?, ?)",
+            (pid, iso(3), '[{"hash":"old"}]'),
+        )
+        cur.execute(
+            "INSERT INTO daily_logs (project_id, date, raw_commits_json) VALUES (?, ?, ?)",
+            (pid, iso(1), '[{"hash":"mine"}]'),
+        )
+
+    by_date = app._day_commit_index(iso(4))
+
+    assert iso(3) not in by_date
+    assert by_date[iso(1)]["commits"] == 1
+
+
 def test_sync_empty_repo_skipped(test_db, repo):
     pid = add_project(test_db, "proj", repo)  # 有 path 但没有任何 commit
     r = app.sync_one_project(pid)
@@ -109,6 +149,40 @@ def test_repo_snapshot_saved_on_sync(test_db, repo):
     snap = json.loads(row["repo_snapshot"])
     assert snap["unpushed_count"] == 1
     assert row["repo_snapshot_at"]
+
+
+def test_add_from_scan_sets_personal_start_and_fork_source(test_db, repo, monkeypatch):
+    test_db.set_setting("last_backup_date", iso(0))
+    monkeypatch.setattr(
+        app.scanner,
+        "get_repo_info",
+        lambda path: {
+            "path": path,
+            "name": "fork",
+            "github_repo": "me/fork",
+            "upstream_repo": "original/project",
+        },
+    )
+    monkeypatch.setattr(
+        app.scanner,
+        "github_repo_metadata",
+        lambda repo_slug, token=None: {
+            "visibility": "public",
+            "forked_from": "original/project",
+        },
+    )
+
+    response = app.app.test_client().post(
+        "/project/add-from-scan", data={"path": str(repo)}
+    )
+
+    assert response.status_code == 302
+    with test_db.cursor() as cur:
+        cur.execute("SELECT * FROM projects WHERE path=?", (str(repo),))
+        project = dict(cur.fetchone())
+    assert project["log_start_date"] == iso(0)
+    assert project["forked_from"] == "original/project"
+    assert project["github_visibility"] == "public"
 
 
 # ---------- AI 摘要的重试语义 ----------
@@ -240,6 +314,17 @@ def test_sync_start_date_clamped(test_db):
     # 坏数据 → 回看上限
     test_db.set_setting("last_sync_date:999", "not-a-date")
     assert app._sync_start_date(999, today) == floor
+
+
+def test_sync_start_date_respects_project_boundary(test_db, repo):
+    pid = add_project(test_db, "fork", repo)
+    with test_db.cursor() as cur:
+        cur.execute(
+            "UPDATE projects SET log_start_date=? WHERE id=?",
+            (iso(2), pid),
+        )
+    test_db.set_setting(f"last_sync_date:{pid}", iso(5))
+    assert app._sync_start_date(pid, iso(0)) == date.today() - timedelta(days=2)
 
 
 def test_default_disabled_for():

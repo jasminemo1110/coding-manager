@@ -228,6 +228,11 @@
       </div>
       <div class="badges">
         {% if p.live and p.live.has_claudemd %}<span class="badge">📝 CLAUDE.md</span>{% endif %}
+        {% if p.forked_from %}
+          <span class="badge badge-fork" data-href="https://github.com/{{ p.forked_from }}"
+                title="Fork 自 {{ p.forked_from }}"
+                onclick="event.stopPropagation(); window.open(this.dataset.href,'_blank')">⑂ Fork</span>
+        {% endif %}
         {% if p.github_repo %}
           {% set vis = p.github_visibility or 'unknown' %}
           <span class="badge badge-{{ vis }}" data-href="https://github.com/{{ p.github_repo }}" onclick="event.stopPropagation(); window.open(this.dataset.href,'_blank')">

@@ -128,7 +128,9 @@ def write_day(project_id, day_iso):
         return None
     with db.cursor() as cur:
         cur.execute(
-            "SELECT * FROM daily_logs WHERE project_id = ? AND date = ?",
+            "SELECT dl.* FROM daily_logs dl JOIN projects p ON p.id = dl.project_id "
+            "WHERE dl.project_id = ? AND dl.date = ? "
+            "AND (p.log_start_date IS NULL OR p.log_start_date = '' OR dl.date >= p.log_start_date)",
             (project_id, day_iso),
         )
         row = cur.fetchone()
@@ -170,7 +172,12 @@ def backfill_all():
     if not vault_dir():
         return 0
     with db.cursor() as cur:
-        cur.execute("SELECT project_id, date FROM daily_logs ORDER BY project_id, date")
+        cur.execute(
+            "SELECT dl.project_id, dl.date FROM daily_logs dl "
+            "JOIN projects p ON p.id = dl.project_id "
+            "WHERE p.log_start_date IS NULL OR p.log_start_date = '' OR dl.date >= p.log_start_date "
+            "ORDER BY dl.project_id, dl.date"
+        )
         rows = [(r["project_id"], r["date"]) for r in cur.fetchall()]
     written = 0
     for project_id, day_iso in rows:
@@ -208,7 +215,9 @@ def _diary_block(day_iso):
         cur.execute(
             "SELECT p.name AS name FROM daily_logs dl "
             "JOIN projects p ON p.id = dl.project_id "
-            "WHERE dl.date = ? ORDER BY p.name",
+            "WHERE dl.date = ? "
+            "AND (p.log_start_date IS NULL OR p.log_start_date = '' OR dl.date >= p.log_start_date) "
+            "ORDER BY p.name",
             (day_iso,),
         )
         names = [r["name"] for r in cur.fetchall()]
