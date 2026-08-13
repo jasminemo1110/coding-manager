@@ -51,6 +51,23 @@ python app.py
 
 打开浏览器访问 **http://localhost:8765**
 
+### macOS 登录后自动启动（可选）
+
+不想每次手动运行 `python app.py`，可以把网页服务安装为当前用户的 LaunchAgent：
+
+```bash
+bash scripts/install-web-launchd.sh
+```
+
+安装后，Coding Manager 会在登录 macOS 时自动启动；进程意外退出时也会自动拉起。网页服务日志位于 `~/Library/Logs/coding-dashboard-web.log`。
+
+卸载：
+
+```bash
+launchctl bootout "gui/$(id -u)/com.coding-dashboard.web"
+rm "$HOME/Library/LaunchAgents/com.coding-dashboard.web.plist"
+```
+
 ---
 
 ## ⚙️ 初次配置
