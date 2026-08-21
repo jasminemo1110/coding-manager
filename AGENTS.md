@@ -15,7 +15,7 @@
 ## 运行与验证
 
 ```bash
-cd /Users/lixiaonan/code/coding-dashboard
+cd /path/to/coding-dashboard
 ./.venv/bin/python app.py
 ./.venv/bin/python -m pytest tests/ -q
 ```
