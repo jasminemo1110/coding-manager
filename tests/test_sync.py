@@ -146,6 +146,58 @@ def test_pushed_detection_per_day(test_db, repo, tmp_path):
     assert get_log(test_db, pid, iso(1))["pushed_to_github"] == 0  # 未推的那天
 
 
+def test_later_push_promotes_history_without_regenerating_summary(
+    test_db, repo, tmp_path, monkeypatch
+):
+    """隔几天才 push：历史勾选应补上，但摘要和同步水位线不应倒退重跑。"""
+    old_day = iso(3)
+    make_commit(repo, "a.txt", "尚未推送", old_day)
+    pid = add_project(test_db, "proj", repo)
+    app.sync_one_project(pid)
+    with test_db.cursor() as cur:
+        cur.execute(
+            "UPDATE daily_logs SET auto_summary=? WHERE project_id=? AND date=?",
+            ("原来的摘要", pid, old_day),
+        )
+    assert get_log(test_db, pid, old_day)["pushed_to_github"] == 0
+
+    # 水位线已经走到今天；随后才把旧 commit 推到 remote。
+    test_db.set_setting(f"last_sync_date:{pid}", iso(0))
+    git(tmp_path, "init", "--bare", "-q", "origin.git")
+    git(repo, "remote", "add", "origin", str(tmp_path / "origin.git"))
+    git(repo, "push", "-q", "origin", "HEAD:refs/heads/main")
+
+    calls = fake_ai(monkeypatch, "不该重算")
+    result = app.sync_one_project(pid)
+
+    log = get_log(test_db, pid, old_day)
+    assert log["pushed_to_github"] == 1
+    assert log["auto_summary"] == "原来的摘要"
+    assert calls == []
+    assert result["days"] == 1 and result["commits"] == 0
+
+
+def test_history_waits_until_every_commit_from_that_day_is_pushed(
+    test_db, repo, tmp_path
+):
+    old_day = iso(3)
+    make_commit(repo, "a.txt", "已推的第一条", old_day)
+    git(tmp_path, "init", "--bare", "-q", "origin.git")
+    git(repo, "remote", "add", "origin", str(tmp_path / "origin.git"))
+    git(repo, "push", "-q", "origin", "HEAD:refs/heads/main")
+    make_commit(repo, "b.txt", "未推的第二条", old_day)
+    pid = add_project(test_db, "proj", repo)
+    app.sync_one_project(pid)
+    test_db.set_setting(f"last_sync_date:{pid}", iso(0))
+
+    app.sync_one_project(pid)
+    assert get_log(test_db, pid, old_day)["pushed_to_github"] == 0
+
+    git(repo, "push", "-q", "origin", "HEAD:refs/heads/main")
+    app.sync_one_project(pid)
+    assert get_log(test_db, pid, old_day)["pushed_to_github"] == 1
+
+
 def test_repo_snapshot_saved_on_sync(test_db, repo):
     make_commit(repo, "a.txt", "x", iso(0))
     pid = add_project(test_db, "proj", repo)
@@ -436,3 +488,25 @@ def test_start_sync_single_slot(test_db, monkeypatch):
         assert app._sync_state["running"] is False
         assert app._sync_state["done"] == 1
         assert app._sync_state["skipped"] == 1
+
+
+def test_background_sync_counts_checklist_only_update(test_db, monkeypatch):
+    monkeypatch.setattr(
+        app,
+        "sync_one_project",
+        lambda pid: {"project_id": pid, "ok": True, "commits": 0, "days": 1},
+    )
+    monkeypatch.setattr(app.obsidian, "inject_sweep", lambda: {})
+    with app._sync_lock:
+        app._sync_state.update(
+            running=True, total=1, done=0, current=None,
+            synced=0, skipped=0, results=[],
+        )
+
+    app._run_sync([999])
+
+    with app._sync_lock:
+        assert app._sync_state["running"] is False
+        assert app._sync_state["done"] == 1
+        assert app._sync_state["synced"] == 1
+        assert app._sync_state["skipped"] == 0

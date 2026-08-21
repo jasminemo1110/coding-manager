@@ -81,7 +81,7 @@ data.db                   真实本地数据库，不入 Git
 
 每日清单包含：`AGENTS.md`、Memory、GitHub、部署。
 
-- `AGENTS.md` 与 GitHub 状态可按某天的 Git 历史精确回算；旧项目没有 `AGENTS.md` 时兼容检测 `CLAUDE.md`。
+- `AGENTS.md` 与 GitHub 状态可按某天的 Git 历史精确回算；旧项目没有 `AGENTS.md` 时兼容检测 `CLAUDE.md`。历史日志当天未推送、后来才 push 时，后续同步只补勾 GitHub 状态，不重跑 AI 摘要或倒退同步水位线。
 - Memory 仍读取 Claude Code 实际落盘的 `~/.claude/projects/.../memory/`，只能根据当前 mtime 判断“今天是否更新”，不要虚构 `~/.codex/projects/...` 路径。
 - 部署状态只允许手动确认，不能由在线 URL 推断。
 - `disabled_checks` 只控制某天显示和催办的项目，不应擦除用户已勾选状态。

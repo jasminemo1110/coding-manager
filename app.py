@@ -1043,6 +1043,59 @@ def sync_project_day(p, day_iso, today, unpushed_hashes, mem_today, info, ai_cfg
     return len(commits), True
 
 
+def _promote_pushed_history(p, today, unpushed_hashes):
+    """把后来才推送的历史日志补成已推送，不重算摘要或扩大日期回扫。
+
+    `pushed_to_github` 表示「这天的 commit 已经推送过」，因此历史状态只从 0
+    前进到 1。仅使用日志里已经保存的完整 commit 集合；旧数据缺失或损坏时
+    保持原样，避免猜测。
+    """
+    params = [p["id"], today]
+    boundary_sql = ""
+    if p.get("log_start_date"):
+        boundary_sql = " AND date >= ?"
+        params.append(p["log_start_date"])
+
+    with db.cursor() as cur:
+        cur.execute(
+            "SELECT id, date, raw_commits_json FROM daily_logs "
+            "WHERE project_id = ? AND date < ? AND pushed_to_github = 0 "
+            "AND raw_commits_json IS NOT NULL AND raw_commits_json != ''"
+            + boundary_sql,
+            params,
+        )
+        rows = cur.fetchall()
+
+    promoted = []
+    for row in rows:
+        try:
+            commits = json.loads(row["raw_commits_json"])
+        except (ValueError, TypeError):
+            continue
+        if not isinstance(commits, list) or not commits:
+            continue
+        hashes = []
+        for commit in commits:
+            commit_hash = commit.get("hash") if isinstance(commit, dict) else None
+            if not isinstance(commit_hash, str) or not commit_hash:
+                hashes = []
+                break
+            hashes.append(commit_hash)
+        if hashes and set(hashes).isdisjoint(unpushed_hashes):
+            promoted.append((row["id"], row["date"]))
+
+    if promoted:
+        with db.cursor() as cur:
+            cur.executemany(
+                "UPDATE daily_logs SET pushed_to_github = 1 "
+                "WHERE id = ? AND pushed_to_github = 0",
+                [(log_id,) for log_id, _ in promoted],
+            )
+        for _, day_iso in promoted:
+            obsidian.write_day(p["id"], day_iso)
+    return len(promoted)
+
+
 def sync_one_project(pid):
     """从上次同步水位线补到今天：逐天找出有 commit 但未生成摘要的日子，补齐全套日志。"""
     p = get_project(pid)
@@ -1086,10 +1139,14 @@ def sync_one_project(pid):
             synced_days += 1
         cur_day += dt.timedelta(days=1)
 
+    # 历史天可能在当日同步后才 push。只补勾已有日志，不重新调用 AI，也不受
+    # 水位线限制；否则几天后才 push 的 commit 会永久停留在「未推送」。
+    synced_days += _promote_pushed_history(p, today, unpushed_hashes)
+
     # 推进水位线到今天
     db.set_setting(f"last_sync_date:{pid}", today)
 
-    if total_commits == 0:
+    if total_commits == 0 and synced_days == 0:
         return {"project_id": pid, "ok": True, "skipped": True, "commits": 0, "days": 0}
     return {
         "project_id": pid, "ok": True,
@@ -1125,7 +1182,7 @@ def _run_sync(project_ids):
                 _sync_state["results"].append(r)
                 if r.get("skipped"):
                     _sync_state["skipped"] += 1
-                elif r.get("ok") and r.get("commits"):
+                elif r.get("ok") and (r.get("commits") or r.get("days")):
                     _sync_state["synced"] += 1
         # 收尾扫一遍日记：兜住「先同步了、日记后来才建」的天（无论隔了多少天）
         obsidian.inject_sweep()
