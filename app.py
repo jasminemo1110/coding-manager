@@ -105,7 +105,7 @@ def todos_for_project(pid):
 
 
 CHECK_LABELS = {
-    "claudemd_updated": "CLAUDE.md",
+    "claudemd_updated": "AGENTS.md",
     "memory_updated": "memory",
     "pushed_to_github": "GitHub",
     "deployed": "部署",
@@ -973,7 +973,7 @@ def get_ai_config():
 def sync_project_day(p, day_iso, today, unpushed_hashes, mem_today, info, ai_cfg):
     """补齐某个项目某一天的日志：commit 列表 + AI 摘要 + 自动检测三项清单。
 
-    清单三项里 CLAUDE.md / GitHub 推送可以按那天精确回算；memory 只有「今天」能测
+    清单三项里项目说明 / GitHub 推送可以按那天精确回算；memory 只有「今天」能测
     （文件系统只知道当前 mtime，无法追溯历史某天是否动过 memory），历史天保持未勾选。
     返回 (commits 数, 是否真正写入)。
     """
@@ -1013,7 +1013,8 @@ def sync_project_day(p, day_iso, today, unpushed_hashes, mem_today, info, ai_cfg
 
     # 自动检测清单（可精确测量，故覆盖式写入）；deployed 永远纯手动，不碰
     changed_files = scanner.get_changed_files_for_day(p["path"], day_iso)
-    auto_claudemd = 1 if "CLAUDE.md" in changed_files else 0
+    instruction_name = "AGENTS.md" if info.get("has_agentsmd") else "CLAUDE.md"
+    auto_claudemd = 1 if instruction_name in changed_files else 0
     # 这天的 commit 是否都已推到 remote：只要有一条还在「未推集合」里，就算没推
     day_hashes = {c["hash"] for c in commits}
     auto_pushed = 0 if (day_hashes & unpushed_hashes) else 1
@@ -1334,13 +1335,20 @@ def project_description_generate(pid):
     ai_cfg = get_ai_config()
     if not ai_cfg.get("api_key"):
         return jsonify({"ok": False, "reason": "no api key"})
-    # build context: CLAUDE.md content if available, else recent auto-summaries
+    # build context: canonical AGENTS.md, legacy CLAUDE.md, then recent summaries
     context = ""
     if p.get("path"):
-        claudemd = os.path.join(p["path"], "CLAUDE.md")
-        if os.path.isfile(claudemd):
+        instruction_file = next(
+            (
+                os.path.join(p["path"], name)
+                for name in ("AGENTS.md", "CLAUDE.md")
+                if os.path.isfile(os.path.join(p["path"], name))
+            ),
+            None,
+        )
+        if instruction_file:
             try:
-                with open(claudemd, encoding="utf-8") as f:
+                with open(instruction_file, encoding="utf-8") as f:
                     context = f.read()
             except Exception:
                 context = ""

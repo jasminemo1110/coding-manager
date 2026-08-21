@@ -52,7 +52,7 @@ def test_unpushed_after_partial_push(repo, tmp_path):
 
 
 def test_get_repo_info_basics(repo):
-    make_commit(repo, "CLAUDE.md", "说明", iso(3))
+    make_commit(repo, "AGENTS.md", "说明", iso(3))
     make_commit(repo, "b.txt", "x", iso(1), msg="最后一条")
     info = scanner.get_repo_info(str(repo))
     assert info["first_commit_date"] == iso(3)
@@ -60,6 +60,14 @@ def test_get_repo_info_basics(repo):
     assert info["last_commit_at"].startswith(f"{iso(1)}T12:00:00")
     assert info["last_commit_msg"] == "最后一条"
     assert info["has_claudemd"] is True
+    assert info["has_agentsmd"] is True
+
+
+def test_get_repo_info_falls_back_to_legacy_claude_md(repo):
+    make_commit(repo, "CLAUDE.md", "旧说明", iso(1))
+    info = scanner.get_repo_info(str(repo))
+    assert info["has_claudemd"] is True
+    assert info["has_agentsmd"] is False
 
 
 def test_get_repo_info_detects_named_upstream(repo):

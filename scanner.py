@@ -90,6 +90,7 @@ def get_repo_info(path):
         "first_commit_date": None,
         "has_claudemd": False,
         "claudemd_mtime": None,
+        "has_agentsmd": False,
         "has_unpushed": False,
         "unpushed_count": 0,
         "project_type": None,
@@ -118,11 +119,21 @@ def get_repo_info(path):
     if first:
         info["first_commit_date"] = first.splitlines()[0][:10]
 
-    claudemd = os.path.join(path, "CLAUDE.md")
-    if os.path.isfile(claudemd):
+    # AGENTS.md is canonical. CLAUDE.md remains a fallback for older/reference
+    # repositories that have not migrated their project guide.
+    instruction_file = next(
+        (
+            os.path.join(path, name)
+            for name in ("AGENTS.md", "CLAUDE.md")
+            if os.path.isfile(os.path.join(path, name))
+        ),
+        None,
+    )
+    if instruction_file:
         info["has_claudemd"] = True
+        info["has_agentsmd"] = os.path.basename(instruction_file) == "AGENTS.md"
         info["claudemd_mtime"] = datetime.fromtimestamp(
-            os.path.getmtime(claudemd)
+            os.path.getmtime(instruction_file)
         ).isoformat()
 
     # Check unpushed commits. Robust when there's no upstream/remote:

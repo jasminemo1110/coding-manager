@@ -53,19 +53,28 @@ def fake_ai(monkeypatch, reply="AI 摘要"):
 # ---------- 同步主流程 ----------
 
 def test_sync_creates_log_with_auto_checks(test_db, repo):
-    make_commit(repo, "CLAUDE.md", "说明", iso(0))
+    make_commit(repo, "AGENTS.md", "说明", iso(0))
     pid = add_project(test_db, "proj", repo)
     r = app.sync_one_project(pid)
     assert r["ok"] and r["commits"] == 1 and r["days"] == 1
 
     log = get_log(test_db, pid, iso(0))
-    assert log["claudemd_updated"] == 1        # 今天的 commit 改了 CLAUDE.md
+    assert log["claudemd_updated"] == 1        # 今天的 commit 改了 AGENTS.md
     assert log["pushed_to_github"] == 0        # 无 remote → 全部算未推
     assert len(json.loads(log["raw_commits_json"])) == 1
     assert "deployed" in log["disabled_checks"]            # tracks_deployment=0
-    assert "claudemd_updated" not in log["disabled_checks"]  # 有 CLAUDE.md 文件
+    assert "claudemd_updated" not in log["disabled_checks"]  # 有 AGENTS.md 文件
     # 水位线推进到今天
     assert test_db.get_setting(f"last_sync_date:{pid}") == iso(0)
+
+
+def test_sync_falls_back_to_legacy_claude_md(test_db, repo):
+    make_commit(repo, "CLAUDE.md", "旧说明", iso(0))
+    pid = add_project(test_db, "legacy", repo)
+    app.sync_one_project(pid)
+    log = get_log(test_db, pid, iso(0))
+    assert log["claudemd_updated"] == 1
+    assert "claudemd_updated" not in log["disabled_checks"]
 
 
 def test_sync_backfills_since_watermark(test_db, repo):

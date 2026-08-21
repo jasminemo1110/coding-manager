@@ -227,7 +227,7 @@
         </div>
       </div>
       <div class="badges">
-        {% if p.live and p.live.has_claudemd %}<span class="badge">📝 CLAUDE.md</span>{% endif %}
+        {% if p.live and p.live.has_claudemd %}<span class="badge">📝 {{ 'AGENTS.md' if p.live.has_agentsmd else 'CLAUDE.md' }}</span>{% endif %}
         {% if p.forked_from %}
           <span class="badge badge-fork" data-href="https://github.com/{{ p.forked_from }}"
                 title="Fork 自 {{ p.forked_from }}"
