@@ -1083,58 +1083,63 @@ textarea.autosize {
   margin: 0.5rem 0 1rem;
 }
 
-/* 学习 page: 学习笔记 + 参考资料 */
-.learn-cols {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1.5rem;
-}
-@media (max-width: 860px) {
-  .learn-cols { grid-template-columns: 1fr; }
-}
+/* 学习 page: Obsidian 只读笔记索引 */
 .learn-section .section-head { margin-bottom: 0.8rem; }
-.ref-list { list-style: none; padding: 0; margin: 0; }
-.ref-card {
-  background: var(--paper);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  padding: 0.75rem 0.95rem;
-  margin-bottom: 0.55rem;
+.learning-library { max-width: 920px; }
+.learning-head { align-items: flex-end; }
+.learning-head h1 { margin-bottom: 0.15rem; }
+.learning-head p { margin: 0; }
+.library-location {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  margin: -0.35rem 0 1rem;
+  min-width: 0;
 }
-.ref-card.starred {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 1px var(--accent);
+.library-location code {
+  overflow-wrap: anywhere;
+  color: var(--ink-soft);
+}
+.legacy-migration-notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
   background: var(--accent-soft);
 }
-.ref-card-head { margin-bottom: 0.2rem; display: flex; align-items: baseline; gap: 0.4rem; }
-.ref-star {
-  flex-shrink: 0;
-  font-size: 1rem;
-  line-height: 1;
-  background: transparent;
-  border: none;
-  color: var(--line-strong);
-  cursor: pointer;
-  padding: 0;
-  transition: color 0.12s, transform 0.12s;
+.legacy-migration-notice p { margin: 0.2rem 0 0; }
+.legacy-migration-notice form { flex-shrink: 0; }
+@media (max-width: 600px) {
+  .legacy-migration-notice { align-items: flex-start; flex-direction: column; }
 }
-.ref-star:hover { transform: scale(1.2); }
-.ref-star.on { color: var(--accent); }
-.ref-links { list-style: none; padding: 0; margin: 0.4rem 0 0; }
-.ref-links li { padding: 0.1rem 0; font-size: 0.88rem; }
-.ref-form { display: flex; flex-direction: column; gap: 0.4rem; margin-top: 0.4rem; }
-.ref-form input, .ref-form textarea {
-  padding: 0.4rem 0.6rem;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  font-family: inherit;
-  font-size: 0.85rem;
+.count-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.4rem;
+  padding: 0.08rem 0.38rem;
+  border-radius: 999px;
   background: var(--bg);
+  color: var(--muted);
+  font: 500 0.72rem/1.2 Inter, sans-serif;
+  vertical-align: middle;
 }
-.ref-links-edit { display: flex; flex-direction: column; gap: 0.35rem; }
-.ref-link-row { display: flex; gap: 0.4rem; }
-.ref-link-row input[name=link_name] { flex: 0 0 30%; }
-.ref-link-row input[name=link_url] { flex: 1; }
+.library-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: 0.65rem;
+}
+.library-card-footer > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.library-card-footer .btn-sm { flex-shrink: 0; }
 
 /* logs */
 .log {

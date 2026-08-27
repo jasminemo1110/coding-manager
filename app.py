@@ -22,6 +22,7 @@ import db
 import scanner
 import ai
 import obsidian
+import learning_library
 
 app = Flask(__name__)
 app.secret_key = "coding-dashboard-local"
@@ -1426,103 +1427,45 @@ def project_description_generate(pid):
     return jsonify({"ok": True, "description": desc})
 
 
-# ---------- 学习页：学习笔记（全局笔记）+ 参考资料 ----------
+# ---------- 学习页：只读索引 Obsidian 学习库 ----------
 
 @app.route("/notes")
 def notes_list():
     q = request.args.get("q", "").strip()
-    with db.cursor() as cur:
-        # only global notes (project_id IS NULL); project notes stay inside their projects
-        if q:
-            like = f"%{q}%"
-            cur.execute(
-                "SELECT * FROM notes WHERE project_id IS NULL "
-                "AND (title LIKE ? OR body LIKE ? OR tags LIKE ?) ORDER BY updated_at DESC",
-                (like, like, like),
-            )
-        else:
-            cur.execute(
-                "SELECT * FROM notes WHERE project_id IS NULL ORDER BY updated_at DESC"
-            )
-        notes = [dict(r) for r in cur.fetchall()]
-        # reference items
-        if q:
-            like = f"%{q}%"
-            cur.execute(
-                "SELECT * FROM reference_items WHERE title LIKE ? OR body LIKE ? OR links LIKE ? "
-                "ORDER BY starred DESC, id DESC",
-                (like, like, like),
-            )
-        else:
-            cur.execute("SELECT * FROM reference_items ORDER BY starred DESC, id DESC")
-        references = [dict(r) for r in cur.fetchall()]
-    for r in references:
-        try:
-            r["link_list"] = json.loads(r["links"]) if r.get("links") else []
-        except Exception:
-            r["link_list"] = []
-    return render_template("notes.html", notes=notes, references=references, q=q)
+    library = learning_library.scan(q)
+    pending_legacy = learning_library.pending_legacy_count()
+    return render_template(
+        "notes.html",
+        notes=library["notes"],
+        library_root=library["root"],
+        configured=bool(obsidian.vault_dir()),
+        pending_legacy=pending_legacy,
+        q=q,
+    )
 
 
-def _parse_links_from_form():
-    """Collect link rows (name[] + url[]) from a reference form into a JSON-ready list."""
-    names = request.form.getlist("link_name")
-    urls = request.form.getlist("link_url")
-    links = []
-    for name, url in zip(names, urls):
-        url = (url or "").strip()
-        if url:
-            links.append({"name": (name or "").strip() or url, "url": url})
-    return links
-
-
-@app.route("/reference/new", methods=["POST"])
-def reference_new():
-    title = request.form.get("title", "").strip() or "(无标题)"
-    body = request.form.get("body", "")
-    links = _parse_links_from_form()
-    with db.cursor() as cur:
-        cur.execute(
-            "INSERT INTO reference_items (title, body, links) VALUES (?, ?, ?)",
-            (title, body, json.dumps(links, ensure_ascii=False)),
-        )
+@app.route("/notes/migrate-legacy", methods=["POST"])
+def notes_migrate_legacy():
+    if not obsidian.vault_dir():
+        flash("请先在设置中配置 Obsidian vault。")
+        return redirect(url_for("settings"))
+    try:
+        result = learning_library.migrate_legacy()
+    except OSError as exc:
+        flash(f"迁移失败：{exc}")
+        return redirect(url_for("notes_list"))
+    flash(
+        f"已迁移 {result['migrated']} 份旧资料到 Obsidian；"
+        f"跳过 {result['skipped']} 份已迁移资料。数据库备份仍保留。"
+    )
     return redirect(url_for("notes_list"))
-
-
-@app.route("/reference/<int:rid>/edit", methods=["POST"])
-def reference_edit(rid):
-    title = request.form.get("title", "").strip() or "(无标题)"
-    body = request.form.get("body", "")
-    links = _parse_links_from_form()
-    with db.cursor() as cur:
-        cur.execute(
-            "UPDATE reference_items SET title=?, body=?, links=? WHERE id=?",
-            (title, body, json.dumps(links, ensure_ascii=False), rid),
-        )
-    return redirect(url_for("notes_list"))
-
-
-@app.route("/reference/<int:rid>/delete", methods=["POST"])
-def reference_delete(rid):
-    with db.cursor() as cur:
-        cur.execute("DELETE FROM reference_items WHERE id=?", (rid,))
-    return redirect(url_for("notes_list"))
-
-
-@app.route("/reference/<int:rid>/star", methods=["POST"])
-def reference_star_toggle(rid):
-    with db.cursor() as cur:
-        cur.execute("UPDATE reference_items SET starred = 1 - starred WHERE id = ?", (rid,))
-        cur.execute("SELECT starred FROM reference_items WHERE id = ?", (rid,))
-        row = cur.fetchone()
-    return jsonify({"ok": True, "starred": row["starred"] if row else 0})
 
 
 @app.route("/note/new", methods=["POST"])
 def note_new():
     project_id = request.form.get("project_id") or None
-    if project_id == "":
-        project_id = None
+    if not project_id:
+        abort(400)
     title = request.form.get("title", "").strip() or "(无标题)"
     body = request.form.get("body", "")
     tags = request.form.get("tags", "")
@@ -1544,6 +1487,10 @@ def note_edit(nid):
     body = request.form.get("body", "")
     tags = request.form.get("tags", "")
     with db.cursor() as cur:
+        cur.execute("SELECT project_id FROM notes WHERE id=?", (nid,))
+        note = cur.fetchone()
+        if not note or note["project_id"] is None:
+            abort(404)
         cur.execute(
             "UPDATE notes SET title=?, body=?, tags=?, updated_at=datetime('now','localtime') WHERE id=?",
             (title, body, tags, nid),
@@ -1560,8 +1507,10 @@ def note_edit(nid):
 def note_delete(nid):
     with db.cursor() as cur:
         # 删前先记住它关联哪天，删完好把那天存档里的笔记同步掉
-        cur.execute("SELECT linked_daily_log_id FROM notes WHERE id=?", (nid,))
+        cur.execute("SELECT project_id, linked_daily_log_id FROM notes WHERE id=?", (nid,))
         row = cur.fetchone()
+        if not row or row["project_id"] is None:
+            abort(404)
         linked_log = row["linked_daily_log_id"] if row else None
         cur.execute("DELETE FROM notes WHERE id=?", (nid,))
     if linked_log:
@@ -1744,29 +1693,10 @@ def export_project(pid):
     return text_response("\n".join(out), filename)
 
 
-@app.route("/export/global-notes")
-def export_global_notes():
-    with db.cursor() as cur:
-        cur.execute(
-            "SELECT * FROM notes WHERE project_id IS NULL ORDER BY created_at DESC"
-        )
-        notes = [dict(r) for r in cur.fetchall()]
-    out = ["# 学习笔记\n"]
-    for n in notes:
-        out.append(f"## {n['title']}")
-        out.append(f"_{n.get('created_at','')}_")
-        if n.get("tags"):
-            out.append(f"标签：{n['tags']}")
-        out.append("")
-        out.append(n.get("body", ""))
-        out.append("")
-    return text_response("\n".join(out), "学习笔记.md")
-
-
 @app.route("/export/note/<int:nid>")
 def export_note(nid):
     with db.cursor() as cur:
-        cur.execute("SELECT * FROM notes WHERE id = ?", (nid,))
+        cur.execute("SELECT * FROM notes WHERE id = ? AND project_id IS NOT NULL", (nid,))
         n = cur.fetchone()
     if not n:
         abort(404)
@@ -1781,22 +1711,10 @@ def export_note(nid):
 
 @app.route("/export/all-notes")
 def export_all_notes():
-    out = ["# 全部笔记\n"]
+    out = ["# 全部项目笔记\n"]
     with db.cursor() as cur:
-        cur.execute(
-            "SELECT * FROM notes WHERE project_id IS NULL ORDER BY created_at DESC"
-        )
-        global_notes = [dict(r) for r in cur.fetchall()]
         cur.execute("SELECT * FROM projects ORDER BY name")
         projects = [dict(r) for r in cur.fetchall()]
-    if global_notes:
-        out.append("## 全局笔记\n")
-        for n in global_notes:
-            out.append(f"### {n['title']}")
-            if n.get("tags"):
-                out.append(f"_标签：{n['tags']}_")
-            out.append(n.get("body", ""))
-            out.append("")
     for p in projects:
         with db.cursor() as cur:
             cur.execute(
@@ -1838,6 +1756,10 @@ def settings():
         new_subdir = request.form.get("obsidian_subdir", "").strip()
         db.set_setting("obsidian_vault_dir", new_vault)
         db.set_setting("obsidian_subdir", new_subdir)  # 先写设置，backfill 才落到新文件夹
+        db.set_setting(
+            "obsidian_learning_subdir",
+            request.form.get("obsidian_learning_subdir", "").strip(),
+        )
         if new_vault and (new_vault != old_vault or new_subdir != old_subdir):
             obsidian.backfill_all()
         # 日记文件夹：首次填入或改动时，立即把已有日记全扫一遍填托管块
@@ -1859,6 +1781,7 @@ def settings():
     backup_dir_active = db.resolve_backup_dir()
     obsidian_vault_dir = db.get_setting("obsidian_vault_dir", "")
     obsidian_subdir = db.get_setting("obsidian_subdir", "")
+    obsidian_learning_subdir = db.get_setting("obsidian_learning_subdir", "")
     obsidian_diary_subdir = db.get_setting("obsidian_diary_subdir", "")
     with db.cursor() as cur:
         cur.execute("SELECT * FROM projects WHERE excluded_from_scan = 1 ORDER BY name")
@@ -1876,6 +1799,7 @@ def settings():
         backup_dir_active=backup_dir_active,
         obsidian_vault_dir=obsidian_vault_dir,
         obsidian_subdir=obsidian_subdir,
+        obsidian_learning_subdir=obsidian_learning_subdir,
         obsidian_diary_subdir=obsidian_diary_subdir,
         excluded=excluded,
         categories=categories,

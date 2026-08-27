@@ -70,7 +70,7 @@ data.db                   真实本地数据库，不入 Git
 - `daily_logs`：按项目和日期唯一，保存 commit、AI 摘要、手动补充和四项清单。
 - `project_todos`：项目或全局待办；`done_at` 决定何时进入历史回收站。
 - `media_items`：自媒体计划、状态和发布时间。
-- `notes` / `reference_items`：项目笔记、学习笔记和参考资料。
+- `notes`：项目笔记；历史全局学习笔记暂留作迁移备份。`reference_items` 只保留历史参考资料，不再是学习页来源。
 - `settings`：扫描路径、AI/GitHub 配置、备份与 Obsidian 配置、迁移标记。
 
 所有 schema 迁移放在 `db.init_db()` 并保持幂等：新增列先查 `PRAGMA table_info`，新增表用 `IF NOT EXISTS`，一次性数据迁移用 `settings` 标记。不要直接修改或提交真实 `data.db`。
@@ -101,6 +101,8 @@ data.db                   真实本地数据库，不入 Git
 ## Obsidian 与用户数据
 
 - 项目日志写到 `<vault>/<obsidian_subdir>/<项目名>/<日期>.md`，根据数据库现状整体重算后覆盖。
+- 独立学习资料以 Obsidian 为唯一事实来源，默认位于 `<vault>/<obsidian_subdir>/Vibe Coding 学习库/`。其中所有 Markdown 都是平等的笔记，分类交给 Obsidian tags；学习页只读扫描、搜索和生成 Obsidian 打开链接，不回写数据库或 Markdown。
+- 旧的全局 `notes` 和 `reference_items` 只允许通过学习页的显式入口保留式迁移：每条在学习库根目录生成一个带 `legacy_id` 的 Markdown，不保留旧分类字段、不覆盖同名文件、不删除数据库记录，并保持重复执行幂等；全部迁移后入口自动隐藏。
 - `obsidian_vault_dir` 留空时整套归档必须安全跳过。
 - 用户日记只允许替换 `<!-- vibe:start -->` 与 `<!-- vibe:end -->` 之间的托管块，绝不整篇覆盖，也不要猜插入位置。
 - 没有锚点、没有日记文件或内容未变化时不写盘。

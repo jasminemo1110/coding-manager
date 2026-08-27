@@ -275,35 +275,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // 参考资料星标：加星置顶（starred 优先，组内按 id 倒序），无需刷新
-  function resortRefList(list) {
-    Array.from(list.children)
-      .sort((a, b) => {
-        const sa = a.classList.contains('starred') ? 1 : 0;
-        const sb = b.classList.contains('starred') ? 1 : 0;
-        if (sa !== sb) return sb - sa;
-        return Number(b.dataset.refId) - Number(a.dataset.refId);
-      })
-      .forEach(li => list.appendChild(li));
-  }
-  document.querySelectorAll('.ref-star[data-url]').forEach(star => {
-    star.addEventListener('click', async (e) => {
-      e.stopPropagation();
-      try {
-        const r = await fetch(star.dataset.url, { method: 'POST' });
-        const data = await r.json();
-        if (data.ok) {
-          const on = !!data.starred;
-          star.classList.toggle('on', on);
-          const card = star.closest('.ref-card');
-          const list = card?.parentElement;
-          if (card) card.classList.toggle('starred', on);
-          if (list) resortRefList(list);
-        }
-      } catch (e) { /* ignore */ }
-    });
-  });
-
   // Media chip star toggle
   document.querySelectorAll('.media-star[data-url]').forEach(star => {
     star.addEventListener('click', async (e) => {
@@ -385,20 +356,6 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     grow();
     ta.addEventListener('input', grow);
-  });
-
-  // Reference form: "＋ 加一条链接" clones the last name/url row
-  document.querySelectorAll('.add-link-row').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const wrap = btn.parentElement.querySelector('.ref-links-edit');
-      if (!wrap) return;
-      const rows = wrap.querySelectorAll('.ref-link-row');
-      const last = rows[rows.length - 1];
-      const fresh = last.cloneNode(true);
-      fresh.querySelectorAll('input').forEach(i => { i.value = ''; });
-      wrap.appendChild(fresh);
-      fresh.querySelector('input')?.focus();
-    });
   });
 
   // Card navigation (card is a div now) — navigate unless click hit an interactive child
