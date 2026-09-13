@@ -282,7 +282,8 @@ def _day_commit_index(since_iso=None):
         sql = (
             "SELECT dl.date AS d, p.name AS name, dl.raw_commits_json AS rcj FROM daily_logs dl "
             "JOIN projects p ON p.id = dl.project_id "
-            "WHERE (p.log_start_date IS NULL OR p.log_start_date = '' OR dl.date >= p.log_start_date)"
+            "WHERE p.counts_for_coding = 1 "
+            "AND (p.log_start_date IS NULL OR p.log_start_date = '' OR dl.date >= p.log_start_date)"
         )
         params = []
         if since_iso:
@@ -749,6 +750,18 @@ def todos_history():
         key=lambda g: (g["project_id"] is None, g["project_name"] or ""),
     )
     return render_template("todos_history.html", groups=ordered, total=len(rows))
+
+
+@app.route("/project/<int:pid>/coding-stats", methods=["POST"])
+def project_coding_stats(pid):
+    if not get_project(pid):
+        abort(404)
+    with db.cursor() as cur:
+        cur.execute(
+            "UPDATE projects SET counts_for_coding=? WHERE id=?",
+            (1 if request.form.get("counts_for_coding") == "1" else 0, pid),
+        )
+    return redirect(url_for("project_detail", pid=pid))
 
 
 @app.route("/project/<int:pid>/update", methods=["POST"])

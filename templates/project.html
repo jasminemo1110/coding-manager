@@ -304,6 +304,11 @@
       <button type="submit" class="btn btn-primary">保存</button>
     </div>
   </form>
+  <form method="post" action="{{ url_for('project_coding_stats', pid=p.id) }}">
+    <label class="check"><input type="checkbox" name="counts_for_coding" value="1" {% if p.counts_for_coding %}checked{% endif %}> 计入 coding 统计</label>
+    <p class="muted small">影响全部历史的热力图及今日、本周、本月、今年提交总数；项目、同步和历史记录仍保留。</p>
+    <button type="submit" class="btn">保存统计设置</button>
+  </form>
   <form method="post" action="{{ url_for('project_delete', pid=p.id) }}" class="danger-zone">
     <button class="btn-sm danger" onclick="return confirm('确认删除整个项目？')">删除项目</button>
   </form>

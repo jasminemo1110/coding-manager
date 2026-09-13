@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS projects (
     online_status INTEGER NOT NULL DEFAULT 0,
     tracks_deployment INTEGER NOT NULL DEFAULT 0,
     paused INTEGER NOT NULL DEFAULT 0,
+    counts_for_coding INTEGER NOT NULL DEFAULT 1,
     excluded_from_scan INTEGER NOT NULL DEFAULT 0,
     sort_order INTEGER NOT NULL DEFAULT 0,
     repo_snapshot TEXT,
@@ -202,6 +203,8 @@ def init_db():
             cur.execute(
                 "UPDATE projects SET paused = 1, stage = 'in_progress' WHERE stage = 'paused'"
             )
+        if "counts_for_coding" not in cols:
+            cur.execute("ALTER TABLE projects ADD COLUMN counts_for_coding INTEGER NOT NULL DEFAULT 1")
         # daily_logs checklist columns
         cur.execute("PRAGMA table_info(daily_logs)")
         dl_cols = {row["name"] for row in cur.fetchall()}
