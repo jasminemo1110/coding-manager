@@ -14,6 +14,7 @@ import app
 import obsidian
 
 
+@db.protected_operation
 def main():
     db.init_db()
     stamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")

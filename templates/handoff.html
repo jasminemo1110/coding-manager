@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}换设备交接 — Coding Manager{% endblock %}
+{% block content %}
+<div class="page-head"><div><a class="back" href="{{ url_for('settings') }}">← 设置</a><h1>换设备交接</h1><p class="muted">保存这一台的进展，在下一台接着做。</p></div></div>
+{% if error %}
+<div class="flash" role="alert">{{ error }}</div>
+<a class="btn" href="{{ url_for('handoff.index') }}">返回交接页</a>
+{% elif preview %}
+<section class="handoff-card">
+  <span class="handoff-step">接收 · 先核对</span><h2>这份备份将替换本机记录</h2>
+  <p>来源：<strong>{{ preview.source.device_label }}</strong> · {{ preview.source.exported_at or '旧版备份未记录生成时间，请自行确认文件日期' }}</p>
+  <p class="muted small">文件：{{ preview.filename }}。日志范围：{{ preview.summary.first_log or '暂无' }} 至 {{ preview.summary.last_log or '暂无' }}。</p>
+  <p>本机独有或内容不同的记录会被替换，不会自动合并。恢复前会自动保存本机完整旧库；如两边都工作过，请先保留双方备份并核对差异。</p>
+  <div class="handoff-table-wrap"><table class="handoff-table">
+    <thead><tr><th>内容</th><th>本机</th><th>备份</th><th>新增</th><th>替换</th><th>移除</th></tr></thead>
+    <tbody>{% for row in preview.differences %}<tr><th>{{ row.label }}</th><td>{{ row.local }}</td><td>{{ row.incoming }}</td><td>{{ row.added }}</td><td>{{ row.changed }}</td><td>{{ row.removed }}</td></tr>{% endfor %}</tbody>
+  </table></div>
+  <p class="muted small">按记录标识比较。项目路径和配置行差异可能来自两台电脑的环境不同。</p>
+</section>
+<form action="{{ url_for('handoff.restore') }}" method="post" class="handoff-card">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="token" value="{{ preview.token }}">
+  <h2>连接这台电脑上的项目</h2>
+  <p>已优先匹配本机已有项目路径。未拉取的项目请留空：历史记录照常保留，日后可在项目设置里连接代码。</p>
+  <div class="handoff-paths">{% for p in preview.paths %}
+    <label class="handoff-path"><strong>{{ p.name }}</strong><span class="muted small">{{ '已找到本机仓库' if p.valid else '暂未连接 · 可以留空' }}</span>
+      <input type="text" name="path:{{ p.id }}" value="{{ p.path if p.valid else '' }}" placeholder="本机 Git 仓库根目录，或留空" aria-label="{{ p.name }} 的本地路径">
+      {% if p.source_path %}<span class="muted small">备份中的路径：{{ p.source_path }}</span>{% endif %}
+    </label>
+  {% endfor %}</div>
+  <p class="muted">扫描目录、备份目录和 Obsidian 目录沿用本机设置；接收时不写入 Obsidian。AI / GitHub 配置随备份恢复。</p>
+  <label class="check"><input type="checkbox" name="replace" value="yes" required> 我已核对差异，同意先保存本机旧库，再用这份备份替换本机记录。</label>
+  <div class="dialog-actions"><a class="btn" href="{{ url_for('handoff.index') }}">取消</a><button class="btn btn-primary" type="submit">保留旧库并接收备份</button></div>
+</form>
+{% else %}
+{% if restored %}
+<section class="handoff-card handoff-success" role="status"><span class="handoff-step">已接收</span><h2>记录已恢复，并通过逐字段核对</h2>
+  <p>{{ restored.restored_at }} · {{ restored.summary.counts.projects }} 个项目 / {{ restored.summary.counts.daily_logs }} 条日志 / {{ restored.summary.counts.project_todos }} 条待办。</p>
+  <p>本机原数据库已保留，可下载后通过本页接收功能恢复。</p>
+  <a class="btn" href="{{ url_for('handoff.recovery', token=restored.id) }}">下载恢复前的旧库</a>
+  <p class="muted small handoff-path-text">保存位置：{{ restored.recovery_path }}</p>
+</section>
+{% endif %}
+{% if exported %}
+<section class="handoff-card handoff-success" role="status"><span class="handoff-step">已导出</span><h2>交接备份已生成</h2>
+  <p>{{ exported.device_label }} · {{ exported.exported_at }}</p>
+  <div class="handoff-counts"><span><strong>{{ exported.summary.counts.projects }}</strong> 个项目</span><span><strong>{{ exported.summary.counts.daily_logs }}</strong> 条日志</span><span><strong>{{ exported.summary.counts.project_todos }}</strong> 条待办</span><span><strong>{{ exported.summary.counts.notes }}</strong> 条数据库笔记</span></div>
+  <p class="muted">最新日志日期：{{ exported.summary.last_log or '暂无日志' }}。这表示日志日期，不代表所有项目已同步到该日。</p>
+  {% if exported.summary.summary_missing %}<p class="muted small">其中 {{ exported.summary.summary_missing }} 条日志尚无有效 AI 摘要，备份保留它们目前的内容。</p>{% endif %}
+  <a class="btn btn-primary" href="{{ url_for('handoff.download', token=exported.id) }}">下载交接备份</a>
+  <p class="muted small handoff-path-text">另存于：{{ exported.path }}</p>
+  <p>若使用 iCloud，请等待文件上传完成；到另一台电脑后选择这份备份接收。网页无法确认云端是否已同步完成。</p>
+</section>
+{% endif %}
+<div class="handoff-grid">
+<section class="handoff-card">
+  <span class="handoff-step">01 · 离开这台电脑</span><h2>导出交接备份</h2>
+  <p>先保存网页修改，并将需要带走的项目同步到最新，再导出整份记录。项目代码通过 GitHub 交接，Obsidian 笔记通过其同步功能交接。</p>
+  <button type="button" class="btn" id="handoff-sync-btn" data-url="{{ url_for('sync_today_all') }}" data-status-url="{{ url_for('sync_status') }}">先同步本机项目</button>
+  <p id="handoff-sync-status" class="muted small" role="status" aria-live="polite"></p>
+  <form action="{{ url_for('handoff.export') }}" method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label class="handoff-path">本机名称<input type="text" name="device_label" value="{{ device_label }}" placeholder="例如：济南电脑" maxlength="40" required></label>
+    <label class="check"><input type="checkbox" name="saved" value="yes" required> 要带走的修改已保存，必要的项目同步已完成。</label>
+    <button type="submit" class="btn btn-primary">生成交接备份</button>
+  </form>
+  <p class="muted small">包含全部数据库记录及 API 配置，请作为私人备份保管。每次独立命名，保存在备份目录的 handoffs 文件夹。</p>
+</section>
+<section class="handoff-card">
+  <span class="handoff-step">02 · 到达另一台电脑</span><h2>接收交接备份</h2>
+  <p>选择上一台电脑导出的文件。先看来源、记录数量和差异，再确认恢复，并连接本机项目路径。</p>
+  <form action="{{ url_for('handoff.preview') }}" method="post" enctype="multipart/form-data">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label class="handoff-path">备份文件<input type="file" name="backup" accept=".zip,.db" required></label>
+    <p class="muted small">支持交接 .zip 包和旧版完整 .db 备份，最大 64 MB。请先等云盘下载完成。</p>
+    <button type="submit" class="btn btn-primary">选择后预览差异</button>
+  </form>
+  <p class="muted small">接收前自动保存本机旧库。不同设备各自新增的内容不会自动合并。</p>
+</section>
+</div>
+{% if projects %}
+<section class="handoff-card"><h2>本机项目连接情况</h2><p class="muted">未连接的项目保留历史，不参与本机自动同步。可在项目设置中修改路径。</p>
+  <ul class="handoff-projects">{% for p in projects %}<li><a href="{{ url_for('project_detail', pid=p.id) }}">{{ p.name }}</a><span class="muted small">{{ '已连接' if p.available else '未连接' }}</span></li>{% endfor %}</ul>
+</section>
+{% endif %}
+{% if not current %}<a class="btn" href="{{ url_for('handoff.index') }}">返回交接页</a>{% endif %}
+{% endif %}
+{% endblock %}

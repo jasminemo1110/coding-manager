@@ -6,6 +6,11 @@
   <h1>设置</h1>
 </div>
 
+<section class="handoff-entry">
+  <div><h2>换设备交接</h2><p class="muted">把已保存的日志、摘要、清单和待办完整带到另一台电脑。</p></div>
+  <a class="btn btn-primary" href="{{ url_for('handoff.index') }}">导出 / 接收交接备份 →</a>
+</section>
+
 <form method="post" action="{{ url_for('settings') }}" class="settings-form">
   <section>
     <h2>扫描目录</h2>
@@ -37,7 +42,7 @@
 
   <section>
     <h2>备份目录（可选）</h2>
-    <p class="muted small">每天自动把 <code>data.db</code> 备份一份到这里（保留最近 30 份）。留空则自动选择：macOS 用 iCloud Drive，其它系统用工程目录下的 <code>backups/</code>。想备到 Dropbox / 坚果云 / 外置盘就填它们的路径。<br>
+    <p class="muted small">每天自动备份数据库，按设备分别保留最近 30 份，避免不同电脑覆盖同日备份。交接备份另存，不参与自动清理。留空则自动选择：macOS 用 iCloud Drive，其它系统用工程目录下的 <code>backups/</code>。想备到 Dropbox / 坚果云 / 外置盘就填它们的路径。<br>
       当前实际备份到：<code>{{ backup_dir_active }}</code></p>
     <label class="check"><input type="text" name="backup_dir" value="{{ backup_dir }}" placeholder="留空自动选择；可填 ~/Dropbox/coding-backups 之类" style="width:100%"></label>
   </section>

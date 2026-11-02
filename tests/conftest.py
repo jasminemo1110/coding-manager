@@ -19,6 +19,8 @@ import db as db_module  # noqa: E402
 def test_db(tmp_path, monkeypatch):
     """把 db 层指到临时文件并建好 schema。"""
     monkeypatch.setattr(db_module, "DB_PATH", str(tmp_path / "test-data.db"))
+    monkeypatch.setattr(db_module, "BACKUP_ICLOUD_DIR", str(tmp_path / "no-cloud" / "backups"))
+    monkeypatch.setattr(db_module, "BACKUP_LOCAL_DIR", str(tmp_path / "backups"))
     # 环境变量里的 key 会让 get_ai_config 拿到真 key、意外调 AI
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     db_module.init_db()
