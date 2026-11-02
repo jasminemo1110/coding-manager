@@ -2,6 +2,10 @@
 
 import sqlite3
 import os
+import secrets
+import tempfile
+from pathlib import Path
+from functools import wraps
 from contextlib import contextmanager
 from datetime import datetime
 
@@ -353,6 +357,88 @@ BACKUP_ICLOUD_DIR = os.path.expanduser(
 BACKUP_LOCAL_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "backups")
 
 
+def local_state_dir():
+    """设备状态不随数据库交接，测试随 DB_PATH 自动隔离。"""
+    path = Path(DB_PATH).parent / ".handoff"
+    path.mkdir(mode=0o700, parents=True, exist_ok=True)
+    return path
+
+
+class OperationBusy(Exception):
+    pass
+
+
+def acquire_operation(exclusive=False):
+    """独立 SQLite 锁库：网页/CLI 持读锁，整库交接持独占锁。
+
+    锁覆盖一次完整业务操作（包括 AI 调用），而不仅是单条 SQL。
+    使用 SQLite 文件锁同时协调进程与线程；进程退出会自动释放。
+    """
+    path = local_state_dir() / "operations.db"
+    conn = sqlite3.connect(str(path), timeout=0, check_same_thread=False)
+    try:
+        conn.execute("CREATE TABLE IF NOT EXISTS gate (id INTEGER PRIMARY KEY)")
+        conn.commit()
+        conn.execute("BEGIN EXCLUSIVE" if exclusive else "BEGIN")
+        conn.execute("SELECT * FROM gate").fetchall()
+        return conn
+    except sqlite3.OperationalError as exc:
+        conn.close()
+        raise OperationBusy("正在同步或保存数据，请稍后重试。") from exc
+
+
+def protected_operation(func):
+    @wraps(func)
+    def wrapped(*args, **kwargs):
+        lease = acquire_operation()
+        try:
+            return func(*args, **kwargs)
+        finally:
+            lease.close()
+    return wrapped
+
+
+def device_id():
+    path = local_state_dir() / "device-id"
+    try:
+        with path.open("x", encoding="utf-8") as f:
+            f.write(secrets.token_hex(8))
+        path.chmod(0o600)
+    except FileExistsError:
+        pass
+    value = path.read_text(encoding="utf-8").strip()
+    if len(value) != 16 or any(c not in "0123456789abcdef" for c in value):
+        raise ValueError("设备标识损坏，请检查 .handoff/device-id")
+    return value
+
+
+def snapshot_to(target, source=None):
+    """通过 backup API 捕获 WAL，先写临时文件，校验后原子发布。"""
+    target = Path(target)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    fd, temporary = tempfile.mkstemp(prefix=".snapshot-", dir=str(target.parent))
+    os.close(fd)
+    try:
+        src = sqlite3.connect(Path(source or DB_PATH).resolve().as_uri() + "?mode=ro", uri=True)
+        dst = sqlite3.connect(temporary)
+        try:
+            src.backup(dst)
+            dst.execute("PRAGMA journal_mode=DELETE")
+            if dst.execute("PRAGMA integrity_check").fetchone()[0] != "ok":
+                raise ValueError("数据库完整性检查失败")
+        finally:
+            dst.close()
+            src.close()
+        with open(temporary, "rb") as f:
+            os.fsync(f.fileno())
+        os.replace(temporary, target)
+    finally:
+        for suffix in ('', '-wal', '-shm', '-journal'):
+            if os.path.exists(temporary + suffix):
+                os.unlink(temporary + suffix)
+    return str(target)
+
+
 def resolve_backup_dir():
     """决定备份落到哪个目录（跨平台）：
 
@@ -374,7 +460,7 @@ def backup_db(keep=30):
     """备份 data.db。手动笔记/待办/摘要都只存在这一个文件里，不可再生。
 
     目录由 resolve_backup_dir() 决定（设置优先 → iCloud → 本地）。
-    每天一份、同日覆盖，保留最近 keep 份。用 sqlite3 的 backup API
+    每台设备每天一份，同日覆盖本机备份，保留本机最近 keep 份。用 SQLite backup API
     而非复制文件，保证 WAL 模式下快照一致。失败返回 None，不影响主流程。
     """
     if not os.path.exists(DB_PATH):
@@ -382,22 +468,13 @@ def backup_db(keep=30):
     target_dir = resolve_backup_dir()
     try:
         os.makedirs(target_dir, exist_ok=True)
-        target = os.path.join(
-            target_dir, f"data-{datetime.now().strftime('%Y%m%d')}.db"
-        )
-        src = sqlite3.connect(DB_PATH)
-        try:
-            dst = sqlite3.connect(target)
-            try:
-                src.backup(dst)
-            finally:
-                dst.close()
-        finally:
-            src.close()
+        suffix = f"-{device_id()}.db"
+        target = os.path.join(target_dir, f"data-{datetime.now().strftime('%Y%m%d')}{suffix}")
+        snapshot_to(target)
         old_backups = sorted(
             f
             for f in os.listdir(target_dir)
-            if f.startswith("data-") and f.endswith(".db")
+            if f.startswith("data-") and f.endswith(suffix)
         )
         for old in old_backups[:-keep]:
             os.remove(os.path.join(target_dir, old))

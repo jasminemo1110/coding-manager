@@ -16,6 +16,7 @@ from flask import (
     Response,
     abort,
     flash,
+    g,
 )
 
 import db
@@ -23,19 +24,44 @@ import scanner
 import ai
 import obsidian
 import learning_library
+import handoff
 
 app = Flask(__name__)
 app.secret_key = "coding-dashboard-local"
+app.config['MAX_CONTENT_LENGTH'] = handoff.MAX_BYTES + 1024 * 1024
+app.register_blueprint(handoff.bp)
+
+
+@app.before_request
+def guard_database_operation():
+    if request.endpoint == 'static':
+        return
+    exclusive = request.endpoint in ('handoff.restore', 'handoff.export')
+    try:
+        g.database_lease = db.acquire_operation(exclusive=exclusive)
+    except db.OperationBusy as exc:
+        if request.path.startswith('/handoff'):
+            return render_template('handoff.html', error=str(exc) + ' 请返回交接页重试。'), 409
+        return jsonify({'ok': False, 'reason': str(exc)}), 409
+
+
+@app.teardown_request
+def release_database_operation(exc):
+    lease = g.pop('database_lease', None)
+    if lease is not None:
+        lease.close()
 
 
 @app.before_request
 def ensure_db():
+    if request.endpoint == 'static':
+        return
     if not getattr(app, "_db_inited", False):
         db.init_db()
         app._db_inited = True
     # 每天第一次访问时自动备份 data.db（失败则下个请求重试）
     today = date.today().isoformat()
-    if db.get_setting("last_backup_date") != today:
+    if not request.path.startswith('/handoff') and db.get_setting("last_backup_date") != today:
         if db.backup_db():
             db.set_setting("last_backup_date", today)
 
@@ -1115,6 +1141,9 @@ def sync_one_project(pid):
     p = get_project(pid)
     if not p or not p.get("path"):
         return {"project_id": pid, "ok": False, "reason": "no path"}
+    if not handoff.valid_repo_path(p['path']):
+        return {"project_id": pid, "ok": True, "skipped": True,
+                "reason": "local repository unavailable", "commits": 0, "days": 0}
     today = date.today().isoformat()
     ai_cfg = get_ai_config()
     # 整段时间窗里复用同一份「未推 hash 集合 / memory 今日状态 / repo 信息」，避免逐天重复跑
@@ -1184,13 +1213,17 @@ _sync_state = {
 }
 
 
-def _run_sync(project_ids):
+def _run_sync(project_ids, lease):
     try:
         for pid in project_ids:
             p = get_project(pid)
             with _sync_lock:
                 _sync_state["current"] = p["name"] if p else str(pid)
-            r = sync_one_project(pid)
+            try:
+                r = sync_one_project(pid)
+            except Exception:
+                app.logger.exception('Project sync failed: %s', pid)
+                r = {"project_id": pid, "ok": False, "reason": "同步失败，请检查本机配置后重试"}
             with _sync_lock:
                 _sync_state["done"] += 1
                 _sync_state["results"].append(r)
@@ -1205,12 +1238,18 @@ def _run_sync(project_ids):
             _sync_state["running"] = False
             _sync_state["current"] = None
             _sync_state["finished_at"] = datetime.now().isoformat(timespec="seconds")
+        lease.close()
 
 
 def start_sync(project_ids):
     """启动后台同步线程。已有一个在跑时返回 False。"""
+    try:
+        lease = db.acquire_operation()
+    except db.OperationBusy:
+        return False
     with _sync_lock:
         if _sync_state["running"]:
+            lease.close()
             return False
         _sync_state.update(
             running=True, total=len(project_ids), done=0, current=None,
@@ -1218,7 +1257,13 @@ def start_sync(project_ids):
             started_at=datetime.now().isoformat(timespec="seconds"),
             finished_at=None,
         )
-    threading.Thread(target=_run_sync, args=(project_ids,), daemon=True).start()
+    try:
+        threading.Thread(target=_run_sync, args=(project_ids, lease), daemon=True).start()
+    except Exception:
+        lease.close()
+        with _sync_lock:
+            _sync_state['running'] = False
+        raise
     return True
 
 

@@ -586,3 +586,28 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 });
+
+// Handoff sync keeps the user on the review page and reports individual failures.
+document.addEventListener('DOMContentLoaded', () => {
+  const btn = document.getElementById('handoff-sync-btn');
+  if (!btn) return;
+  const status = document.getElementById('handoff-sync-status');
+  btn.addEventListener('click', async () => {
+    btn.disabled = true;
+    try {
+      await startSync(btn.dataset.url);
+      const result = await pollSync(btn.dataset.statusUrl, s => {
+        status.textContent = `同步 ${s.done}/${s.total}${s.current ? '：' + s.current : ''}`;
+      });
+      const failed = result.results.filter(r => !r.ok).length;
+      const missing = result.results.filter(r => r.reason === 'local repository unavailable').length;
+      status.textContent = failed
+        ? `${failed} 个项目同步失败，请在项目详情检查后再导出。`
+        : `同步结束；${missing} 个未连接的项目已跳过。请核对需要带走的记录，再生成备份。`;
+    } catch (e) {
+      status.textContent = '同步未完成：' + e.message;
+    } finally {
+      btn.disabled = false;
+    }
+  });
+});

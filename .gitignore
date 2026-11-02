@@ -4,6 +4,7 @@ data.db
 data.db-wal
 data.db-shm
 backups/
+.handoff/
 __pycache__/
 *.pyc
 .DS_Store

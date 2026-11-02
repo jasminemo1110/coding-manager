@@ -30,13 +30,18 @@ def test_backup_creates_overwrites_and_prunes(test_db, tmp_path, monkeypatch):
     assert test_db.backup_db(keep=3) == target
     assert len(os.listdir(cloud)) == 1
     # 超过 keep 份时裁掉最旧的
+    suffix = f"-{test_db.device_id()}.db"
     for d in ("20200101", "20200102", "20200103"):
-        (cloud / f"data-{d}.db").write_text("旧备份")
+        (cloud / f"data-{d}{suffix}").write_text("旧备份")
+    (cloud / 'data-20200101-other-device.db').write_text('另一台设备的备份')
+    (cloud / 'data-20200101.db').write_text('旧格式备份')
     test_db.backup_db(keep=3)
     remaining = sorted(os.listdir(cloud))
-    assert len(remaining) == 3
-    assert f"data-{datetime.now().strftime('%Y%m%d')}.db" in remaining
-    assert "data-20200101.db" not in remaining
+    assert len(remaining) == 5
+    assert f"data-{datetime.now().strftime('%Y%m%d')}{suffix}" in remaining
+    assert f"data-20200101{suffix}" not in remaining
+    assert 'data-20200101-other-device.db' in remaining
+    assert 'data-20200101.db' in remaining
 
 
 def test_backup_falls_back_to_local(test_db, tmp_path, monkeypatch):

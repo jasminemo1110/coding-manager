@@ -1482,3 +1482,29 @@ details > form input, details > form textarea {
   font-size: 0.85rem;
   background: var(--bg);
 }
+
+/* Device handoff */
+.handoff-entry { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: 1.2rem 1.4rem; border: 1px solid var(--accent); border-radius: var(--radius-sm); margin-bottom: 2rem; }
+.handoff-entry h2, .handoff-entry p { margin: .25rem 0; }
+.handoff-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.4rem; }
+.handoff-card { border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 1.5rem; margin-bottom: 1.4rem; background: var(--paper); }
+.handoff-card h2 { margin: .45rem 0 .8rem; }
+.handoff-step { color: var(--accent); font-size: .8rem; font-weight: 600; letter-spacing: .05em; }
+.handoff-success { border-left: 3px solid var(--accent); }
+.handoff-counts { display: flex; flex-wrap: wrap; gap: 1rem 2rem; margin: 1rem 0; }
+.handoff-counts strong { font-size: 1.5rem; }
+.handoff-path { display: flex; flex-direction: column; gap: .4rem; margin: 1rem 0; min-width: 0; }
+.handoff-path input { width: 100%; min-width: 0; }
+.handoff-paths { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 1.5rem; }
+.handoff-path span, .handoff-path-text { overflow-wrap: anywhere; }
+.handoff-card .check { margin: 1rem 0; align-items: flex-start; }
+.handoff-table-wrap { overflow-x: auto; }
+.handoff-table { width: 100%; border-collapse: collapse; white-space: nowrap; }
+.handoff-table th, .handoff-table td { padding: .65rem .7rem; text-align: left; border-bottom: 1px solid var(--line); }
+.handoff-projects { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .6rem 2rem; padding: 0; list-style: none; }
+.handoff-projects li { display: flex; justify-content: space-between; gap: 1rem; }
+@media (max-width: 700px) {
+  .handoff-grid, .handoff-paths, .handoff-projects { grid-template-columns: 1fr; }
+  .handoff-entry { align-items: flex-start; flex-direction: column; }
+  .handoff-card { padding: 1rem; }
+}

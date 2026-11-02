@@ -503,7 +503,7 @@ def test_background_sync_counts_checklist_only_update(test_db, monkeypatch):
             synced=0, skipped=0, results=[],
         )
 
-    app._run_sync([999])
+    app._run_sync([999], test_db.acquire_operation())
 
     with app._sync_lock:
         assert app._sync_state["running"] is False
