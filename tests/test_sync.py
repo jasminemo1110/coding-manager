@@ -337,26 +337,90 @@ def test_today_summary_refreshed_every_sync(test_db, repo, monkeypatch):
 # ---------- 清单：用户操作在重同步后保留 ----------
 
 def test_user_removed_check_stays_removed(test_db, repo):
-    make_commit(repo, "a.txt", "x", iso(0))
+    make_commit(repo, "ROADMAP.md", "# 路线图", iso(0))
     pid = add_project(test_db, "proj", repo)
     app.sync_one_project(pid)
     log = get_log(test_db, pid, iso(0))
-    app._set_log_disabled(log["id"], "memory_updated", True)  # 用户点 × 移除
+    app._set_log_disabled(log["id"], "roadmap_updated", True)
     app.sync_one_project(pid)
     disabled = get_log(test_db, pid, iso(0))["disabled_checks"]
-    assert "memory_updated" in disabled
+    assert "roadmap_updated" in disabled
     assert "deployed" in disabled  # 建行时的默认 disabled 也还在
+    assert get_log(test_db, pid, iso(0))["roadmap_updated"] == 1
 
 
-def test_manual_memory_check_survives_resync(test_db, repo):
+def test_legacy_memory_is_read_only_and_survives_resync(test_db, repo):
     make_commit(repo, "a.txt", "x", iso(0))
     pid = add_project(test_db, "proj", repo)
     app.sync_one_project(pid)
     log = get_log(test_db, pid, iso(0))
-    with test_db.cursor() as cur:  # 用户手动勾上 memory
+    with test_db.cursor() as cur:
         cur.execute("UPDATE daily_logs SET memory_updated=1 WHERE id=?", (log["id"],))
-    app.sync_one_project(pid)  # 自动检测测不到 memory（max 保留手动勾）
+    app.sync_one_project(pid)
     assert get_log(test_db, pid, iso(0))["memory_updated"] == 1
+    client = app.app.test_client()
+    page = client.get(f"/project/{pid}").text
+    assert "✓ Memory（历史记录）" in page
+    assert 'data-field="memory_updated"' not in page
+    assert client.post(f"/log/{log['id']}/check", data={"field": "memory_updated"}).status_code == 400
+
+
+def test_roadmap_link_and_checklist_follow_local_file(test_db, repo):
+    make_commit(repo, "a.txt", "x", iso(0))
+    pid = add_project(test_db, "proj", repo)
+    app.sync_one_project(pid)
+    client = app.app.test_client()
+    project_url = f"/project/{pid}"
+    roadmap_url = f"{project_url}/roadmap"
+    check = 'data-field="roadmap_updated"'
+
+    page = client.get(project_url).text
+    assert roadmap_url not in page
+    assert check not in page
+    assert client.get(roadmap_url).status_code == 404
+
+    roadmap = repo / "ROADMAP.md"
+    roadmap.write_text("# 下个版本\n<script>should be text</script>", encoding="utf-8")
+    page = client.get(project_url).text
+    assert roadmap_url in page
+    assert check in page
+    preview = client.get(roadmap_url)
+    assert preview.status_code == 200
+    assert "# 下个版本" in preview.text
+    assert "&lt;script&gt;should be text&lt;/script&gt;" in preview.text
+    app.sync_one_project(pid)
+    assert get_log(test_db, pid, iso(0))["roadmap_updated"] == 0
+
+    make_commit(repo, "ROADMAP.md", "# 已提交的路线图", iso(0))
+    app.sync_one_project(pid)
+    assert get_log(test_db, pid, iso(0))["roadmap_updated"] == 1
+
+    roadmap.rename(repo / "moved.md")
+    page = client.get(project_url).text
+    assert roadmap_url not in page
+    assert check not in page
+    assert client.get(roadmap_url).status_code == 404
+
+    roadmap.symlink_to(repo / "moved.md")
+    assert client.get(roadmap_url).status_code == 404
+
+
+def test_roadmap_backfill_preserves_when_each_daily_check_applied(test_db, repo):
+    make_commit(repo, "a.txt", "before roadmap", iso(3))
+    make_commit(repo, "ROADMAP.md", "# first version", iso(2))
+    make_commit(repo, "a.txt", "no roadmap change", iso(1))
+    git(repo, "rm", "ROADMAP.md")
+    git(repo, "commit", "-m", "Remove roadmap",
+        env_extra={"GIT_AUTHOR_DATE": f"{iso(0)} 12:00:00",
+                   "GIT_COMMITTER_DATE": f"{iso(0)} 12:00:00"})
+    pid = add_project(test_db, "proj", repo)
+
+    app.sync_one_project(pid)
+
+    assert get_log(test_db, pid, iso(3))["roadmap_updated"] is None
+    assert get_log(test_db, pid, iso(2))["roadmap_updated"] == 1
+    assert get_log(test_db, pid, iso(1))["roadmap_updated"] == 0
+    assert get_log(test_db, pid, iso(0))["roadmap_updated"] is None
 
 
 # ---------- 水位线 / 默认 disabled ----------

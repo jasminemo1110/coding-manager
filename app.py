@@ -2,6 +2,7 @@
 
 import os
 import json
+import stat
 import threading
 import datetime as dt
 from datetime import date, datetime
@@ -133,11 +134,11 @@ def todos_for_project(pid):
 
 CHECK_LABELS = {
     "claudemd_updated": "AGENTS.md",
-    "memory_updated": "memory",
+    "roadmap_updated": "Roadmap",
     "pushed_to_github": "GitHub",
     "deployed": "部署",
 }
-CHECK_FIELDS = ["claudemd_updated", "memory_updated", "pushed_to_github", "deployed"]
+CHECK_FIELDS = tuple(CHECK_LABELS)
 
 
 def log_disabled_set(log):
@@ -146,10 +147,11 @@ def log_disabled_set(log):
     return {f for f in raw.split(",") if f}
 
 
-def log_active_fields(log):
-    """Checklist fields still active (shown / counted) for this day's log."""
-    disabled = log_disabled_set(log)
-    return [f for f in CHECK_FIELDS if f not in disabled]
+def log_available_fields(log, has_roadmap=None):
+    """Current logs can use live file presence; older logs use the saved status."""
+    if has_roadmap is None:
+        has_roadmap = log.get("roadmap_updated") is not None
+    return [f for f in CHECK_FIELDS if f != "roadmap_updated" or has_roadmap]
 
 
 def default_disabled_for(project, has_claudemd=True):
@@ -232,6 +234,7 @@ def build_todos(projects):
     """Cross-project checklist status: for each project's latest active day,
     report which (still-active) checklist items are unchecked."""
     todos = []
+    today = date.today().isoformat()
     for p in projects:
         live = p.get("live") or {}
         if live.get("unpushed_count", 0) > 0:
@@ -243,8 +246,12 @@ def build_todos(projects):
             })
         log = p.get("latest_log")
         if log and not log.get("checklist_reminder_ignored"):
-            fields = log_active_fields(log)
-            unchecked = [CHECK_LABELS[f] for f in fields if not log.get(f)]
+            has_roadmap = bool(scanner.roadmap_path(p.get("path")))
+            if log["date"] != today:
+                has_roadmap = has_roadmap and log.get("roadmap_updated") is not None
+            fields = log_available_fields(log, has_roadmap)
+            disabled = log_disabled_set(log)
+            unchecked = [CHECK_LABELS[f] for f in fields if f not in disabled and not log.get(f)]
             if unchecked:
                 # 首页只报「最新那天有未完成项」，具体是哪几项留到悬停 tooltip 里
                 todos.append({
@@ -599,6 +606,8 @@ def project_detail(pid):
     if not p:
         abort(404)
     enriched = enrich_project(p, live=True)
+    has_roadmap = enriched["live"].get("has_roadmap", False)
+    today = date.today().isoformat()
     with db.cursor() as cur:
         cur.execute(
             "SELECT * FROM daily_logs WHERE project_id = ? "
@@ -614,8 +623,11 @@ def project_detail(pid):
                     log["commits"] = []
             else:
                 log["commits"] = []
-            log["active_fields"] = log_active_fields(log)
-            log["disabled_fields"] = sorted(log_disabled_set(log))
+            fields = log_available_fields(log, has_roadmap if log["date"] == today else None)
+            disabled = log_disabled_set(log)
+            log["active_fields"] = [f for f in fields if f not in disabled]
+            log["disabled_fields"] = [f for f in fields if f in disabled]
+            log["legacy_memory_checked"] = log["memory_updated"] and "memory_updated" not in disabled
         cur.execute(
             "SELECT * FROM notes WHERE project_id = ? ORDER BY updated_at DESC", (pid,)
         )
@@ -624,7 +636,6 @@ def project_detail(pid):
             "SELECT * FROM media_items WHERE project_id = ? ORDER BY id DESC", (pid,)
         )
         media = [dict(r) for r in cur.fetchall()]
-        today = date.today().isoformat()
         cur.execute(
             "SELECT * FROM project_todos WHERE project_id = ? "
             "AND NOT (done = 1 AND done_at IS NOT NULL AND done_at < ?) "
@@ -661,9 +672,26 @@ def project_detail(pid):
         stage_order=db.STAGE_ORDER,
         categories=all_categories(),
         check_labels=CHECK_LABELS,
-        check_fields=CHECK_FIELDS,
+        has_roadmap=has_roadmap,
         today=today,
     )
+
+
+@app.route("/project/<int:pid>/roadmap")
+def project_roadmap(pid):
+    p = get_project(pid)
+    path = scanner.roadmap_path(p.get("path")) if p else None
+    if not path:
+        abort(404)
+    try:
+        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+        with os.fdopen(fd, encoding="utf-8-sig", errors="replace") as source:
+            if not stat.S_ISREG(os.fstat(source.fileno()).st_mode):
+                abort(404)
+            content = source.read()
+    except OSError:
+        abort(404)
+    return render_template("roadmap.html", p=p, content=content)
 
 
 @app.route("/project/<int:pid>/todo/add", methods=["POST"])
@@ -1010,11 +1038,9 @@ def get_ai_config():
     }
 
 
-def sync_project_day(p, day_iso, today, unpushed_hashes, mem_today, info, ai_cfg):
-    """补齐某个项目某一天的日志：commit 列表 + AI 摘要 + 自动检测三项清单。
+def sync_project_day(p, day_iso, today, unpushed_hashes, info, ai_cfg):
+    """补齐某个项目某一天的日志：commit 列表、AI 摘要和自动检测的清单状态。
 
-    清单三项里项目说明 / GitHub 推送可以按那天精确回算；memory 只有「今天」能测
-    （文件系统只知道当前 mtime，无法追溯历史某天是否动过 memory），历史天保持未勾选。
     返回 (commits 数, 是否真正写入)。
     """
     pid = p["id"]
@@ -1058,24 +1084,28 @@ def sync_project_day(p, day_iso, today, unpushed_hashes, mem_today, info, ai_cfg
     # 这天的 commit 是否都已推到 remote：只要有一条还在「未推集合」里，就算没推
     day_hashes = {c["hash"] for c in commits}
     auto_pushed = 0 if (day_hashes & unpushed_hashes) else 1
-    # memory 只有今天可测
-    auto_memory = 1 if (is_today and mem_today) else 0
+    # 当前清单也能看到未提交的新文件。回补时看当天最后一条 commit 的文件树。
+    # 本地还未提交的移除只隐藏当前项，已提交的当日状态仍可保留在历史里。
+    has_roadmap = (is_today and info.get("has_roadmap")) or scanner.roadmap_at_commit(
+        p["path"], commits[0]["hash"]
+    )
+    auto_roadmap = int(scanner.ROADMAP_FILENAME in changed_files) if has_roadmap else None
 
     has_claudemd = bool(info.get("has_claudemd"))
     disabled = default_disabled_for(p, has_claudemd=has_claudemd)
     with db.cursor() as cur:
         cur.execute(
             "INSERT INTO daily_logs (project_id, date, auto_summary, raw_commits_json, "
-            "claudemd_updated, memory_updated, pushed_to_github, disabled_checks) "
+            "claudemd_updated, roadmap_updated, pushed_to_github, disabled_checks) "
             "VALUES (?, ?, ?, ?, ?, ?, ?, ?) "
             "ON CONFLICT(project_id, date) DO UPDATE SET "
             "auto_summary=excluded.auto_summary, raw_commits_json=excluded.raw_commits_json, "
             "claudemd_updated=excluded.claudemd_updated, "
-            "memory_updated=max(daily_logs.memory_updated, excluded.memory_updated), "
+            "roadmap_updated=excluded.roadmap_updated, "
             "pushed_to_github=excluded.pushed_to_github",
             (
                 pid, day_iso, summary, json.dumps(commits, ensure_ascii=False),
-                auto_claudemd, auto_memory, auto_pushed, disabled,
+                auto_claudemd, auto_roadmap, auto_pushed, disabled,
             ),
         )
     # 落一份 Markdown 到 Obsidian vault（没配路径则内部跳过）
@@ -1146,9 +1176,8 @@ def sync_one_project(pid):
                 "reason": "local repository unavailable", "commits": 0, "days": 0}
     today = date.today().isoformat()
     ai_cfg = get_ai_config()
-    # 整段时间窗里复用同一份「未推 hash 集合 / memory 今日状态 / repo 信息」，避免逐天重复跑
+    # 整段时间窗里复用同一份未推 hash 集合与仓库信息。
     unpushed_hashes = scanner.get_unpushed_hashes(p["path"])
-    mem_today = scanner.memory_updated_today(p["name"], p["path"], today)
     info = scanner.get_repo_info(p["path"])
     save_repo_snapshot(pid, info)
 
@@ -1175,7 +1204,7 @@ def sync_one_project(pid):
     cur_day = start
     while cur_day <= end:
         n, wrote = sync_project_day(
-            p, cur_day.isoformat(), today, unpushed_hashes, mem_today, info, ai_cfg
+            p, cur_day.isoformat(), today, unpushed_hashes, info, ai_cfg
         )
         total_commits += n
         if wrote:
@@ -1386,7 +1415,9 @@ def log_check_toggle(log_id):
     if field not in CHECK_FIELDS:
         return jsonify({"ok": False, "reason": "invalid field"}), 400
     with db.cursor() as cur:
-        cur.execute(f"UPDATE daily_logs SET {field} = 1 - {field} WHERE id = ?", (log_id,))
+        cur.execute(
+            f"UPDATE daily_logs SET {field} = 1 - COALESCE({field}, 0) WHERE id = ?", (log_id,)
+        )
         cur.execute(f"SELECT {field} AS v FROM daily_logs WHERE id = ?", (log_id,))
         row = cur.fetchone()
     return jsonify({"ok": True, "value": row["v"] if row else 0})

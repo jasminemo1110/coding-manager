@@ -114,8 +114,9 @@ def test_migration_backfills_done_at(test_db):
 
 # ---------- 首页清单提醒：只报最新那天、悬停看明细、可忽略 ----------
 
-def _proj_with_log(pid=1, name="P", unpushed=0, log=None):
-    return {"id": pid, "name": name, "live": {"unpushed_count": unpushed}, "latest_log": log}
+def _proj_with_log(pid=1, name="P", unpushed=0, log=None, path=None):
+    return {"id": pid, "name": name, "live": {"unpushed_count": unpushed},
+            "latest_log": log, "path": path}
 
 
 def _log(log_id=1, date_="2026-07-19", disabled_checks="", ignored=0, **checks):
@@ -130,7 +131,7 @@ def _log(log_id=1, date_="2026-07-19", disabled_checks="", ignored=0, **checks):
 
 
 def test_reminder_hides_specifics_keeps_date_and_tooltip(test_db):
-    # deployed 被 disabled；claudemd 已勾；剩 memory、GitHub 未勾
+    # 部署被移除，项目说明已勾，剩 GitHub 未勾
     log = _log(log_id=7, date_="2026-07-19", disabled_checks="deployed", claudemd_updated=1)
     checklist = [t for t in app.build_todos([_proj_with_log(log=log)])
                  if t["kind"] == "checklist_pending"]
@@ -139,7 +140,20 @@ def test_reminder_hides_specifics_keeps_date_and_tooltip(test_db):
     assert t["date"] == "2026-07-19"
     assert "memory" not in t["text"] and "CLAUDE" not in t["text"]  # 首页不铺明细
     assert t["log_id"] == 7
-    assert set(t["unchecked_labels"]) == {"memory", "GitHub"}       # 明细留给 tooltip
+    assert t["unchecked_labels"] == ["GitHub"]
+
+
+def test_roadmap_reminder_only_when_the_project_still_has_one(repo):
+    log = _log(disabled_checks="deployed", claudemd_updated=1,
+               pushed_to_github=1, roadmap_updated=0)
+    projects = [_proj_with_log(log=log, path=repo)]
+    roadmap = repo / "ROADMAP.md"
+    assert app.build_todos(projects) == []
+    roadmap.write_text("# Roadmap", encoding="utf-8")
+    pending, = app.build_todos(projects)
+    assert pending["unchecked_labels"] == ["Roadmap"]
+    roadmap.unlink()
+    assert app.build_todos(projects) == []
 
 
 def test_reminder_omitted_when_ignored(test_db):
@@ -149,8 +163,7 @@ def test_reminder_omitted_when_ignored(test_db):
 
 
 def test_reminder_omitted_when_nothing_unchecked(test_db):
-    log = _log(disabled_checks="deployed", claudemd_updated=1,
-               memory_updated=1, pushed_to_github=1)
+    log = _log(disabled_checks="deployed", claudemd_updated=1, pushed_to_github=1)
     todos = app.build_todos([_proj_with_log(log=log)])
     assert not [t for t in todos if t["kind"] == "checklist_pending"]
 

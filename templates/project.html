@@ -22,6 +22,9 @@
     </p>
   </div>
   <div class="head-actions">
+    {% if has_roadmap %}
+    <a class="btn" href="{{ url_for('project_roadmap', pid=p.id) }}">Roadmap</a>
+    {% endif %}
     <button class="btn" id="project-sync-btn" data-url="{{ url_for('sync_today_one', pid=p.id) }}" data-status-url="{{ url_for('sync_status') }}" title="补齐上次同步至今每一天有改动但还没生成摘要的日子">🔄 同步到最新</button>
     <button class="btn" id="project-history-btn" data-url="{{ url_for('sync_history_one', pid=p.id) }}" title="导入日志起始日期之后的历史 commit">📥 导入历史</button>
     {% if p.github_repo or p.github_repo_public %}
@@ -154,6 +157,9 @@
               data-url="{{ url_for('log_check_enable', log_id=log.id) }}" data-field="{{ f }}">＋ {{ check_labels[f] }}</button>
       {% endfor %}
     </div>
+    {% if log.legacy_memory_checked %}
+    <p class="muted small">✓ Memory（历史记录）</p>
+    {% endif %}
     {% if log.linked_notes %}
     <div class="log-notes">
       {% for n in log.linked_notes %}

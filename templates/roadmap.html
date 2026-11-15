@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}Roadmap · {{ p.name }} — Coding Manager{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <a class="back" href="{{ url_for('project_detail', pid=p.id) }}">← {{ p.name }}</a>
+    <h1>Roadmap</h1>
+  </div>
+</div>
+<div class="note-body" style="overflow-wrap: anywhere">{{ content }}</div>
+{% endblock %}

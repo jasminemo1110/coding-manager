@@ -15,6 +15,23 @@ def test_init_db_idempotent(test_db):
         assert cur.fetchone()["c"] == len(test_db.PRESET_CATEGORIES)
 
 
+def test_roadmap_migration_keeps_legacy_memory_records(test_db):
+    with test_db.cursor() as cur:
+        cur.execute("ALTER TABLE daily_logs DROP COLUMN roadmap_updated")
+        cur.execute("INSERT INTO projects (name) VALUES ('Legacy')")
+        cur.execute(
+            "INSERT INTO daily_logs (project_id, date, memory_updated, disabled_checks) "
+            "VALUES (?, '2026-10-31', 1, 'memory_updated')", (cur.lastrowid,)
+        )
+
+    test_db.init_db()
+    test_db.init_db()
+
+    with test_db.cursor() as cur:
+        cur.execute("SELECT memory_updated, roadmap_updated, disabled_checks FROM daily_logs")
+        assert tuple(cur.fetchone()) == (1, None, "memory_updated")
+
+
 def test_backup_creates_overwrites_and_prunes(test_db, tmp_path, monkeypatch):
     cloud = tmp_path / "cloud" / "backups"  # 父目录存在 → 走"iCloud"分支
     (tmp_path / "cloud").mkdir()

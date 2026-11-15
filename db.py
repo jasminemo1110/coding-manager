@@ -57,6 +57,7 @@ CREATE TABLE IF NOT EXISTS daily_logs (
     raw_commits_json TEXT,
     claudemd_updated INTEGER NOT NULL DEFAULT 0,
     memory_updated INTEGER NOT NULL DEFAULT 0,
+    roadmap_updated INTEGER,
     pushed_to_github INTEGER NOT NULL DEFAULT 0,
     deployed INTEGER NOT NULL DEFAULT 0,
     disabled_checks TEXT NOT NULL DEFAULT '',
@@ -217,6 +218,9 @@ def init_db():
                 cur.execute(
                     f"ALTER TABLE daily_logs ADD COLUMN {col} INTEGER NOT NULL DEFAULT 0"
                 )
+        if "roadmap_updated" not in dl_cols:
+            # NULL 表示这一天没有 Roadmap 清单项，和有清单但未勾选的 0 不同。
+            cur.execute("ALTER TABLE daily_logs ADD COLUMN roadmap_updated INTEGER")
         if "disabled_checks" not in dl_cols:
             cur.execute(
                 "ALTER TABLE daily_logs ADD COLUMN disabled_checks TEXT NOT NULL DEFAULT ''"

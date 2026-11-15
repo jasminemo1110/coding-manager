@@ -52,7 +52,7 @@ curl -sS --retry 3 --retry-connrefused http://127.0.0.1:8765/
 app.py                    Flask 路由、同步编排和页面上下文
 db.py                     SQLite schema、幂等迁移与备份
 handoff.py                跨设备交接包、预览校验、事务恢复与旧库保留
-scanner.py                仓库扫描、Git 状态、GitHub 元数据和 Memory 检测
+scanner.py                仓库扫描、Git 状态、GitHub 元数据和 Roadmap 检测
 ai.py                     OpenAI 兼容接口的摘要和项目简介
 obsidian.py               项目日志归档与日记托管块
 sync_cli.py               无网页依赖的每日同步入口
@@ -68,7 +68,7 @@ data.db                   真实本地数据库，不入 Git
 ## 核心数据与迁移规则
 
 - `projects`：项目身份、路径、阶段、暂停、仓库、Fork 来源、个人日志起点、展示信息与仓库快照。
-- `daily_logs`：按项目和日期唯一，保存 commit、AI 摘要、手动补充和四项清单。
+- `daily_logs`：按项目和日期唯一，保存 commit、AI 摘要、手动补充和每日清单。
 - `project_todos`：项目或全局待办；`done_at` 决定何时进入历史回收站。
 - `media_items`：自媒体计划、状态和发布时间。
 - `notes`：项目笔记；历史全局学习笔记暂留作迁移备份。`reference_items` 只保留历史参考资料，不再是学习页来源。
@@ -80,13 +80,14 @@ data.db                   真实本地数据库，不入 Git
 
 ## 同步与清单约束
 
-每日清单包含：`AGENTS.md`、Memory、GitHub、部署。
+每日清单追踪 `AGENTS.md`、GitHub 及可选的 Roadmap 和部署。
 
 - `AGENTS.md` 与 GitHub 状态可按某天的 Git 历史精确回算；旧项目没有 `AGENTS.md` 时兼容检测 `CLAUDE.md`。历史日志当天未推送、后来才 push 时，后续同步只补勾 GitHub 状态，不重跑 AI 摘要或倒退同步水位线。
-- Memory 仍读取 Claude Code 实际落盘的 `~/.claude/projects/.../memory/`，只能根据当前 mtime 判断“今天是否更新”，不要虚构 `~/.codex/projects/...` 路径。
+- 项目详情每次加载都检查本机项目根目录的 `ROADMAP.md`，即时显示入口和当日日志的 Roadmap 清单项。自动勾选依据当天提交是否修改了该文件。回补日志时按当天最后一条提交的文件树判断该项是否适用，历史已保存的状态继续显示。
+- 保留 `memory_updated` 和旧的移除设置。历史已勾选的 Memory 在项目日志中只读显示，现行清单、首页提醒和同步均已移除 Memory。
 - 部署状态只允许手动确认，不能由在线 URL 推断。
 - `disabled_checks` 只控制某天显示和催办的项目，不应擦除用户已勾选状态。
-- 同步自动检测项采用事实覆盖；Memory 已勾选使用 `max` 保留，避免历史信息倒退。
+- 同步自动检测项采用事实覆盖。
 - AI 失败占位文本不算有效摘要，后续同步应重试。
 - 水位线要从当天重扫并比较 commit 集合，防止跨午夜提交永久遗漏。
 
