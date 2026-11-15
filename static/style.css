@@ -481,8 +481,12 @@ code { font-family: 'JetBrains Mono', SFMono-Regular, Menlo, monospace; font-siz
   align-items: center;
 }
 .filter-label { color: var(--muted); font-size: 0.85rem; }
-/* 一组「标签 + 若干 chip」整体换行，不会把标签落单在上一行行尾 */
-.filter-group { display: inline-flex; align-items: center; gap: 0.4rem; }
+.filter-group { display: flex; align-items: baseline; gap: 0.4rem; min-width: 0; }
+.filter-group > .filter-label { white-space: nowrap; }
+.filter-options { display: flex; flex-wrap: wrap; gap: 0.4rem; min-width: 0; }
+.filter-options .chip { overflow-wrap: anywhere; }
+.category-filter { flex-wrap: nowrap; margin-bottom: 0.5rem; }
+.view-controls { column-gap: 1.5rem; }
 .chip {
   display: inline-block;
   padding: 0.3rem 0.85rem;

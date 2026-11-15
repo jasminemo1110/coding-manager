@@ -154,26 +154,37 @@
   {% endfor %}
 </div>
 
-<div class="filter-bar">
+<div class="filter-bar filter-group category-filter">
   <span class="filter-label">分类（可多选）：</span>
-  <a href="{{ url_for('dashboard', stage=stage_filter_str, sort=sort_by, status=status_filter) }}" class="chip {% if not category_filter_list %}active{% endif %}">全部</a>
-  {% for c in categories %}
-    {% if c.name in category_filter_list %}
-      {% set new_cat = category_filter_list | reject('equalto', c.name) | list | join(',') %}
-    {% else %}
-      {% set new_cat = (category_filter_list + [c.name]) | join(',') %}
-    {% endif %}
-    <a href="{{ url_for('dashboard', stage=stage_filter_str, sort=sort_by, category=new_cat, status=status_filter) }}" class="chip {% if c.name in category_filter_list %}active{% endif %}" title="点击切换 · 可多选">{{ c.name }}</a>
-  {% endfor %}
-  <span class="filter-label" style="margin-left:1.5rem">排序：</span>
-  {% for key, label in [('stage','按阶段'),('created','按创建时间'),('updated','按最近更新')] %}
-    <a href="{{ url_for('dashboard', stage=stage_filter_str, category=category_filter_str, sort=key, status=status_filter) }}" class="chip {% if sort_by==key %}active{% endif %}">{{ label }}</a>
-  {% endfor %}
-  <span class="filter-group" style="margin-left:1.5rem">
+  <div class="filter-options">
+    <a href="{{ url_for('dashboard', stage=stage_filter_str, sort=sort_by, status=status_filter) }}" class="chip {% if not category_filter_list %}active{% endif %}">全部</a>
+    {% for c in categories %}
+      {% if c.name in category_filter_list %}
+        {% set new_cat = category_filter_list | reject('equalto', c.name) | list | join(',') %}
+      {% else %}
+        {% set new_cat = (category_filter_list + [c.name]) | join(',') %}
+      {% endif %}
+      <a href="{{ url_for('dashboard', stage=stage_filter_str, sort=sort_by, category=new_cat, status=status_filter) }}" class="chip {% if c.name in category_filter_list %}active{% endif %}" title="点击切换 · 可多选">{{ c.name }}</a>
+    {% endfor %}
+  </div>
+</div>
+
+<div class="filter-bar view-controls">
+  <div class="filter-group">
+    <span class="filter-label">排序：</span>
+    <div class="filter-options">
+      {% for key, label in [('stage','按阶段'),('created','按创建时间'),('updated','按最近更新')] %}
+        <a href="{{ url_for('dashboard', stage=stage_filter_str, category=category_filter_str, sort=key, status=status_filter) }}" class="chip {% if sort_by==key %}active{% endif %}">{{ label }}</a>
+      {% endfor %}
+    </div>
+  </div>
+  <div class="filter-group">
     <span class="filter-label">显示列：</span>
-    <button type="button" class="chip chip-btn" data-col-toggle="media">自媒体</button>
-    <button type="button" class="chip chip-btn" data-col-toggle="todos">待办</button>
-  </span>
+    <div class="filter-options">
+      <button type="button" class="chip chip-btn" data-col-toggle="media">自媒体</button>
+      <button type="button" class="chip chip-btn" data-col-toggle="todos">待办</button>
+    </div>
+  </div>
 </div>
 
 <div class="project-rows">
