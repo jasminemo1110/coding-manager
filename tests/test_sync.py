@@ -365,7 +365,8 @@ def test_legacy_memory_is_read_only_and_survives_resync(test_db, repo):
     assert client.post(f"/log/{log['id']}/check", data={"field": "memory_updated"}).status_code == 400
 
 
-def test_roadmap_link_and_checklist_follow_local_file(test_db, repo):
+@pytest.mark.parametrize("relative", ["ROADMAP.md", "docs/ROADMAP.md"])
+def test_roadmap_link_and_checklist_follow_local_file(test_db, repo, relative):
     make_commit(repo, "a.txt", "x", iso(0))
     pid = add_project(test_db, "proj", repo)
     app.sync_one_project(pid)
@@ -379,7 +380,8 @@ def test_roadmap_link_and_checklist_follow_local_file(test_db, repo):
     assert check not in page
     assert client.get(roadmap_url).status_code == 404
 
-    roadmap = repo / "ROADMAP.md"
+    roadmap = repo / relative
+    roadmap.parent.mkdir(exist_ok=True)
     roadmap.write_text("# 下个版本\n<script>should be text</script>", encoding="utf-8")
     page = client.get(project_url).text
     assert roadmap_url in page
@@ -391,7 +393,7 @@ def test_roadmap_link_and_checklist_follow_local_file(test_db, repo):
     app.sync_one_project(pid)
     assert get_log(test_db, pid, iso(0))["roadmap_updated"] == 0
 
-    make_commit(repo, "ROADMAP.md", "# 已提交的路线图", iso(0))
+    make_commit(repo, relative, "# 已提交的路线图", iso(0))
     app.sync_one_project(pid)
     assert get_log(test_db, pid, iso(0))["roadmap_updated"] == 1
 
@@ -407,9 +409,10 @@ def test_roadmap_link_and_checklist_follow_local_file(test_db, repo):
 
 def test_roadmap_backfill_preserves_when_each_daily_check_applied(test_db, repo):
     make_commit(repo, "a.txt", "before roadmap", iso(3))
-    make_commit(repo, "ROADMAP.md", "# first version", iso(2))
+    (repo / "docs").mkdir()
+    make_commit(repo, "docs/ROADMAP.md", "# first version", iso(2))
     make_commit(repo, "a.txt", "no roadmap change", iso(1))
-    git(repo, "rm", "ROADMAP.md")
+    git(repo, "rm", "docs/ROADMAP.md")
     git(repo, "commit", "-m", "Remove roadmap",
         env_extra={"GIT_AUTHOR_DATE": f"{iso(0)} 12:00:00",
                    "GIT_COMMITTER_DATE": f"{iso(0)} 12:00:00"})
@@ -421,6 +424,20 @@ def test_roadmap_backfill_preserves_when_each_daily_check_applied(test_db, repo)
     assert get_log(test_db, pid, iso(2))["roadmap_updated"] == 1
     assert get_log(test_db, pid, iso(1))["roadmap_updated"] == 0
     assert get_log(test_db, pid, iso(0))["roadmap_updated"] is None
+
+
+def test_roadmap_uses_root_when_both_files_exist(test_db, repo):
+    make_commit(repo, "ROADMAP.md", "# 根目录路线图", iso(1))
+    (repo / "docs").mkdir()
+    make_commit(repo, "docs/ROADMAP.md", "# docs 中的路线图", iso(0))
+    pid = add_project(test_db, "proj", repo)
+
+    app.sync_one_project(pid)
+
+    assert get_log(test_db, pid, iso(0))["roadmap_updated"] == 0
+    preview = app.app.test_client().get(f"/project/{pid}/roadmap")
+    assert "# 根目录路线图" in preview.text
+    assert "# docs 中的路线图" not in preview.text
 
 
 # ---------- 水位线 / 默认 disabled ----------

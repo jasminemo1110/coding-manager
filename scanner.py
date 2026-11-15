@@ -74,21 +74,31 @@ def normalize_github_repo(value):
     return parsed or value.strip("/").removesuffix(".git")
 
 
-ROADMAP_FILENAME = "ROADMAP.md"
+ROADMAP_FILES = ("ROADMAP.md", "docs/ROADMAP.md")
 
 
-def roadmap_path(path):
+def roadmap_file(path):
+    """Return the preferred Roadmap path relative to the repository."""
     if not path:
         return None
-    candidate = os.path.join(path, ROADMAP_FILENAME)
-    if os.path.isfile(candidate) and not os.path.islink(candidate):
-        return candidate
+    for relative in ROADMAP_FILES:
+        candidate = os.path.join(path, relative)
+        if relative.startswith("docs/") and os.path.islink(os.path.dirname(candidate)):
+            continue
+        if os.path.isfile(candidate) and not os.path.islink(candidate):
+            return relative
     return None
 
 
 def roadmap_at_commit(path, commit_hash):
-    entry, rc = run(["git", "ls-tree", commit_hash, "--", ROADMAP_FILENAME], cwd=path)
-    return rc == 0 and entry.startswith(("100644 blob ", "100755 blob "))
+    entries, rc = run(["git", "ls-tree", commit_hash, "--", *ROADMAP_FILES], cwd=path)
+    if rc != 0:
+        return None
+    regular_files = {
+        entry.partition("\t")[2] for entry in entries.splitlines()
+        if entry.startswith(("100644 blob ", "100755 blob "))
+    }
+    return next((name for name in ROADMAP_FILES if name in regular_files), None)
 
 
 def get_repo_info(path):
@@ -107,7 +117,7 @@ def get_repo_info(path):
         "has_claudemd": False,
         "claudemd_mtime": None,
         "has_agentsmd": False,
-        "has_roadmap": bool(roadmap_path(path)),
+        "roadmap_file": roadmap_file(path),
         "has_unpushed": False,
         "unpushed_count": 0,
         "project_type": None,

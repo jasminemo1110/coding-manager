@@ -246,7 +246,7 @@ def build_todos(projects):
             })
         log = p.get("latest_log")
         if log and not log.get("checklist_reminder_ignored"):
-            has_roadmap = bool(scanner.roadmap_path(p.get("path")))
+            has_roadmap = bool(scanner.roadmap_file(p.get("path")))
             if log["date"] != today:
                 has_roadmap = has_roadmap and log.get("roadmap_updated") is not None
             fields = log_available_fields(log, has_roadmap)
@@ -606,7 +606,7 @@ def project_detail(pid):
     if not p:
         abort(404)
     enriched = enrich_project(p, live=True)
-    has_roadmap = enriched["live"].get("has_roadmap", False)
+    has_roadmap = bool(enriched["live"].get("roadmap_file"))
     today = date.today().isoformat()
     with db.cursor() as cur:
         cur.execute(
@@ -680,11 +680,19 @@ def project_detail(pid):
 @app.route("/project/<int:pid>/roadmap")
 def project_roadmap(pid):
     p = get_project(pid)
-    path = scanner.roadmap_path(p.get("path")) if p else None
-    if not path:
+    if not p or not p.get("path"):
         abort(404)
+    root = os.path.realpath(p["path"])
+    relative = scanner.roadmap_file(root)
+    if not relative:
+        abort(404)
+    folder, filename = os.path.split(relative)
     try:
-        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+        directory = os.open(os.path.join(root, folder), os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        try:
+            fd = os.open(filename, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=directory)
+        finally:
+            os.close(directory)
         with os.fdopen(fd, encoding="utf-8-sig", errors="replace") as source:
             if not stat.S_ISREG(os.fstat(source.fileno()).st_mode):
                 abort(404)
@@ -1086,10 +1094,10 @@ def sync_project_day(p, day_iso, today, unpushed_hashes, info, ai_cfg):
     auto_pushed = 0 if (day_hashes & unpushed_hashes) else 1
     # 当前清单也能看到未提交的新文件。回补时看当天最后一条 commit 的文件树。
     # 本地还未提交的移除只隐藏当前项，已提交的当日状态仍可保留在历史里。
-    has_roadmap = (is_today and info.get("has_roadmap")) or scanner.roadmap_at_commit(
-        p["path"], commits[0]["hash"]
-    )
-    auto_roadmap = int(scanner.ROADMAP_FILENAME in changed_files) if has_roadmap else None
+    roadmap_file = info.get("roadmap_file") if is_today else None
+    if not roadmap_file:
+        roadmap_file = scanner.roadmap_at_commit(p["path"], commits[0]["hash"])
+    auto_roadmap = int(roadmap_file in changed_files) if roadmap_file else None
 
     has_claudemd = bool(info.get("has_claudemd"))
     disabled = default_disabled_for(p, has_claudemd=has_claudemd)
