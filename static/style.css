@@ -218,6 +218,35 @@ code { font-family: 'JetBrains Mono', SFMono-Regular, Menlo, monospace; font-siz
   flex-wrap: wrap;
   justify-content: flex-end;
 }
+.project-actions {
+  display: grid;
+  grid-template-areas:
+    "sync github edit"
+    "history roadmap export";
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-rows: repeat(2, 1fr);
+  width: max-content;
+  max-width: 100%;
+  align-items: stretch;
+}
+.project-actions #project-sync-btn { grid-area: sync; }
+.project-actions #refresh-github-btn { grid-area: github; }
+.project-action-edit { grid-area: edit; }
+.project-actions #project-history-btn { grid-area: history; }
+.project-action-roadmap { grid-area: roadmap; }
+.project-action-export { grid-area: export; }
+.project-actions > .btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  white-space: normal;
+}
+@media (max-width: 700px) {
+  .project-head { flex-direction: column; }
+  .project-head > div:first-child { align-self: stretch; overflow-wrap: anywhere; }
+  .project-actions > .btn { padding-inline: 0.4rem; }
+}
 
 /* buttons */
 .btn, .btn-sm {

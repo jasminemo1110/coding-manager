@@ -2,7 +2,7 @@
 {% block title %}{{ p.name }} — Coding Manager{% endblock %}
 {% block content %}
 
-<div class="page-head">
+<div class="page-head project-head">
   <div>
     <a class="back" href="{{ url_for('dashboard') }}">← 项目</a>
     <div class="title-row">
@@ -21,17 +21,17 @@
       {% if p.online_url %} · <a href="{{ p.online_url }}" target="_blank">线上</a>{% endif %}
     </p>
   </div>
-  <div class="head-actions">
-    {% if has_roadmap %}
-    <a class="btn" href="{{ url_for('project_roadmap', pid=p.id) }}">Roadmap</a>
-    {% endif %}
+  <div class="head-actions project-actions">
     <button class="btn" id="project-sync-btn" data-url="{{ url_for('sync_today_one', pid=p.id) }}" data-status-url="{{ url_for('sync_status') }}" title="补齐上次同步至今每一天有改动但还没生成摘要的日子">🔄 同步到最新</button>
-    <button class="btn" id="project-history-btn" data-url="{{ url_for('sync_history_one', pid=p.id) }}" title="导入日志起始日期之后的历史 commit">📥 导入历史</button>
     {% if p.github_repo or p.github_repo_public %}
     <button class="btn" id="refresh-github-btn" data-url="{{ url_for('project_refresh_github', pid=p.id) }}" title="重新检测 GitHub 仓库的公开/私有状态">🔄 刷新 GitHub</button>
     {% endif %}
-    <a class="btn" href="{{ url_for('export_project', pid=p.id) }}" download>⬇ 导出</a>
-    <button class="btn" onclick="document.getElementById('edit-project').showModal()">编辑</button>
+    <button class="btn project-action-edit" onclick="document.getElementById('edit-project').showModal()">编辑</button>
+    <button class="btn" id="project-history-btn" data-url="{{ url_for('sync_history_one', pid=p.id) }}" title="导入日志起始日期之后的历史 commit">📥 导入历史</button>
+    {% if has_roadmap %}
+    <a class="btn project-action-roadmap" href="{{ url_for('project_roadmap', pid=p.id) }}">Roadmap</a>
+    {% endif %}
+    <a class="btn project-action-export" href="{{ url_for('export_project', pid=p.id) }}" download>⬇ 导出</a>
   </div>
 </div>
 
