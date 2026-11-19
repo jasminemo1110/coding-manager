@@ -247,7 +247,7 @@ def _remote_default_branch(path, remote, repo, token):
 
 
 def compare_github_default_branches(path, private_repo, public_repo, token=None):
-    """List commits exclusive to each configured repository's local default-branch ref."""
+    """Compare tracked default branches that share a Git ancestor."""
     if not path or not is_git_repo(path):
         return None
     remotes = _github_fetch_remotes(path)
@@ -264,9 +264,18 @@ def compare_github_default_branches(path, private_repo, public_repo, token=None)
         refs.append(f"refs/remotes/{remote}/{branch}")
         sides.append({"repo": repo, "branch": branch, "commits": []})
 
+    # Use the same branch tips for both queries even if a fetch updates the refs.
+    tip_hashes, rc = run(["git", "show-ref", "--verify", "--hash", *refs], cwd=path)
+    if rc != 0:
+        return None
+    tips = tip_hashes.splitlines()
+    _, rc = run(["git", "merge-base", *tips], cwd=path)
+    if rc != 0:
+        return None
+
     output, rc = run(
         ["git", "log", "--left-right", "--no-notes", "--no-show-signature",
-         "--format=%m%x00%H%x00%s", "...".join(refs), "--"],
+         "--format=%m%x00%H%x00%s", "...".join(tips), "--"],
         cwd=path,
     )
     if rc != 0:

@@ -402,8 +402,16 @@ def test_project_detail_lists_exclusive_commits_for_two_default_branches(test_db
     assert "两仓默认分支" not in single_page
     assert "1 个 commit 未推" in single_page
 
+    git(repo, "checkout", "--orphan", "independent-public")
+    make_commit(repo, "public.txt", "published separately", iso(0))
+    git(repo, "update-ref", "refs/remotes/mirror/release/main", "HEAD")
+    independent_page = client.get(url).text
+    assert 'class="repo-comparison' not in independent_page
+    assert 'href="https://github.com/me/private"' in independent_page
+    assert 'href="https://github.com/me/public"' in independent_page
+
     git(repo, "remote", "remove", "mirror")
-    assert "两仓默认分支 · 暂无比较数据" in client.get(url).text
+    assert 'class="repo-comparison' not in client.get(url).text
 
 
 @pytest.mark.parametrize("relative", ["ROADMAP.md", "docs/ROADMAP.md"])

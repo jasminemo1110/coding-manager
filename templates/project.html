@@ -65,9 +65,8 @@
     {% endif %}
   </div>
   {% endif %}
-  {% if p.github_repo and p.github_repo_public %}
+  {% if branch_comparison %}
   <div class="repo-comparison small">
-    {% if branch_comparison %}
     {% set labels = ('私有仓', '公开仓') %}
     {% set comparison_summary %}
       两仓默认分支
@@ -93,9 +92,6 @@
     </details>
     {% else %}
     <span title="根据本机的远端跟踪分支比较">{{ comparison_summary }}</span>
-    {% endif %}
-    {% else %}
-    <span title="需要本机有两个仓库的默认分支跟踪记录">两仓默认分支 · 暂无比较数据</span>
     {% endif %}
   </div>
   {% endif %}
