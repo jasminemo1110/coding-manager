@@ -85,6 +85,28 @@ def test_normalize_github_repo_accepts_slug_and_url():
     assert scanner.normalize_github_repo("git@github.com:me/proj.git") == "me/proj"
 
 
+def test_compare_uses_github_default_branch_when_remote_head_is_missing(repo, monkeypatch):
+    make_commit(repo, "a.txt", "shared", iso(2))
+    git(repo, "remote", "add", "origin", "https://github.com/me/private.git")
+    git(repo, "remote", "add", "mirror", "ssh://git@ssh.github.com:443/me/public.git")
+    git(repo, "update-ref", "refs/remotes/origin/main", "HEAD")
+    git(repo, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main")
+    git(repo, "update-ref", "refs/remotes/mirror/trunk", "HEAD")
+    make_commit(repo, "a.txt", "feature", iso(1))
+    git(repo, "update-ref", "refs/remotes/mirror/main", "HEAD")
+
+    def metadata(repo_slug, token):
+        assert (repo_slug, token) == ("me/public", "test-token")
+        return {"default_branch": "trunk"}
+
+    monkeypatch.setattr(scanner, "github_repo_metadata", metadata)
+    sides = scanner.compare_github_default_branches(str(repo), "me/private", "me/public", "test-token")
+    assert [(side["branch"], side["commits"]) for side in sides] == [("main", []), ("trunk", [])]
+
+    git(repo, "update-ref", "-d", "refs/remotes/mirror/trunk")
+    assert scanner.compare_github_default_branches(str(repo), "me/private", "me/public", "test-token") is None
+
+
 def test_github_repo_metadata_includes_fork_source(monkeypatch):
     class Response:
         status_code = 200
@@ -94,11 +116,12 @@ def test_github_repo_metadata_includes_fork_source(monkeypatch):
             return {
                 "private": False,
                 "fork": True,
+                "default_branch": "trunk",
                 "parent": {"full_name": "middle/proj"},
                 "source": {"full_name": "original/proj"},
             }
 
     monkeypatch.setattr(requests, "get", lambda *args, **kwargs: Response())
     metadata = scanner.github_repo_metadata("me/proj")
-    assert metadata == {"visibility": "public", "forked_from": "original/proj"}
+    assert metadata == {"visibility": "public", "forked_from": "original/proj", "default_branch": "trunk"}
     assert scanner.github_visibility("me/proj") == "public"

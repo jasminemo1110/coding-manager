@@ -1018,6 +1018,20 @@ html.hide-media.hide-todos .project-rows > .empty { grid-column: 1 / -1; }
   background: var(--amber-soft);
   margin-right: 0.4rem;
 }
+.repo-comparison {
+  margin-top: 0.55rem;
+  color: var(--ink-soft);
+  overflow-wrap: anywhere;
+}
+.repo-comparison summary { cursor: pointer; }
+.repo-comparison summary:hover { color: var(--accent-ink); }
+.repo-comparison-commits { margin: 0.55rem 0 0 1rem; }
+.repo-comparison-commits ul {
+  list-style: none;
+  margin: 0.2rem 0 0;
+  padding: 0;
+}
+.repo-comparison-commits li { padding: 0.1rem 0; }
 .project-desc {
   display: inline-flex;
   align-items: center;

@@ -365,6 +365,47 @@ def test_legacy_memory_is_read_only_and_survives_resync(test_db, repo):
     assert client.post(f"/log/{log['id']}/check", data={"field": "memory_updated"}).status_code == 400
 
 
+def test_project_detail_lists_exclusive_commits_for_two_default_branches(test_db, repo):
+    make_commit(repo, "shared.txt", "shared", iso(3))
+    git(repo, "branch", "shared", "HEAD")
+    git(repo, "remote", "add", "origin", "https://github.com/me/private.git")
+    git(repo, "remote", "add", "mirror", "git@github.com:me/public.git")
+    make_commit(repo, "private.txt", "private", iso(2), msg="私有提交")
+    git(repo, "update-ref", "refs/remotes/origin/trunk", "HEAD")
+    git(repo, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/trunk")
+    git(repo, "checkout", "--detach", "shared")
+    make_commit(repo, "public.txt", "public", iso(1), msg="公开提交")
+    git(repo, "update-ref", "refs/remotes/mirror/release/main", "HEAD")
+    git(repo, "symbolic-ref", "refs/remotes/mirror/HEAD", "refs/remotes/mirror/release/main")
+    make_commit(repo, "local.txt", "local", iso(0))
+
+    dual_id = add_project(test_db, "双仓项目", repo)
+    single_id = add_project(test_db, "单仓项目", repo)
+    with test_db.cursor() as cur:
+        cur.execute("UPDATE projects SET github_repo='me/private' WHERE id IN (?, ?)", (dual_id, single_id))
+        cur.execute("UPDATE projects SET github_repo_public='me/public' WHERE id=?", (dual_id,))
+        cur.execute("INSERT INTO daily_logs (project_id, date, pushed_to_github) VALUES (?, ?, 1)", (dual_id, iso()))
+
+    client = app.app.test_client()
+    url = f"/project/{dual_id}"
+    page = client.get(url).text
+    assert "私有仓 <code>trunk</code> 多 1 条" in page
+    assert "公开仓 <code>release/main</code> 多 1 条" in page
+    assert "私有提交" in page and "公开提交" in page
+    for slug, ref in [("private", "origin/trunk"), ("public", "mirror/release/main")]:
+        commit_hash, rc = app.scanner.run(["git", "rev-parse", f"refs/remotes/{ref}"], cwd=repo)
+        assert rc == 0
+        assert f'href="https://github.com/me/{slug}/commit/{commit_hash}"' in page
+    assert get_log(test_db, dual_id, iso())["pushed_to_github"] == 1
+
+    single_page = client.get(f"/project/{single_id}").text
+    assert "两仓默认分支" not in single_page
+    assert "1 个 commit 未推" in single_page
+
+    git(repo, "remote", "remove", "mirror")
+    assert "两仓默认分支 · 暂无比较数据" in client.get(url).text
+
+
 @pytest.mark.parametrize("relative", ["ROADMAP.md", "docs/ROADMAP.md"])
 def test_roadmap_link_and_checklist_follow_local_file(test_db, repo, relative):
     make_commit(repo, "a.txt", "x", iso(0))

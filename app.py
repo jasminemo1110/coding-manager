@@ -659,6 +659,11 @@ def project_detail(pid):
     for log in logs:
         log["linked_notes"] = notes_by_log.get(log["id"], [])
     unpushed_commits = scanner.get_unpushed_commits(p["path"]) if p.get("path") else []
+    branch_comparison = None
+    if p.get("github_repo") and p.get("github_repo_public"):
+        branch_comparison = scanner.compare_github_default_branches(
+            p.get("path"), p["github_repo"], p["github_repo_public"], db.get_setting("github_token")
+        )
     return render_template(
         "project.html",
         p=enriched,
@@ -668,6 +673,7 @@ def project_detail(pid):
         todos=todos,
         archived_todo_count=archived_todo_count,
         unpushed_commits=unpushed_commits,
+        branch_comparison=branch_comparison,
         stage_labels=db.STAGE_LABELS,
         stage_order=db.STAGE_ORDER,
         categories=all_categories(),

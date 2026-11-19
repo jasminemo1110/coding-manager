@@ -206,6 +206,78 @@ def get_unpushed_commits(path, limit=20):
     return commits
 
 
+def _github_fetch_remotes(path):
+    """Map GitHub repository names to remotes whose tracking refs come from them."""
+    output, _ = run(["git", "remote", "-v"], cwd=path)
+    remotes = {}
+    for line in output.splitlines():
+        name, _, entry = line.partition("\t")
+        url, _, direction = entry.rpartition(" ")
+        if direction != "(fetch)":
+            continue
+        if url.lower().startswith("git@github.com:"):
+            repo_path = url.partition(":")[2]
+        else:
+            try:
+                parsed = urlparse(url)
+                if parsed.hostname not in {"github.com", "ssh.github.com"}:
+                    continue
+                repo_path = parsed.path
+            except ValueError:
+                continue
+        repo = normalize_github_repo(repo_path)
+        if repo:
+            remotes.setdefault(repo.lower(), name)
+    return remotes
+
+
+def _remote_default_branch(path, remote, repo, token):
+    prefix = f"refs/remotes/{remote}/"
+    head_ref = prefix + "HEAD"
+    target, rc = run(["git", "rev-parse", "--verify", "--quiet", "--symbolic-full-name", head_ref], cwd=path)
+    if rc == 0 and target.startswith(prefix) and target != head_ref:
+        return target.removeprefix(prefix)
+
+    # A remote added after cloning may have tracking branches but no local HEAD.
+    refs, rc = run(["git", "for-each-ref", "--count=1", "--format=%(refname)", prefix], cwd=path)
+    if rc != 0 or not refs:
+        return None
+    metadata = github_repo_metadata(repo, token)
+    return metadata.get("default_branch") if metadata else None
+
+
+def compare_github_default_branches(path, private_repo, public_repo, token=None):
+    """List commits exclusive to each configured repository's local default-branch ref."""
+    if not path or not is_git_repo(path):
+        return None
+    remotes = _github_fetch_remotes(path)
+    sides = []
+    refs = []
+    for value in (private_repo, public_repo):
+        repo = normalize_github_repo(value)
+        remote = remotes.get(repo.lower()) if repo else None
+        if not remote:
+            return None
+        branch = _remote_default_branch(path, remote, repo, token)
+        if not branch:
+            return None
+        refs.append(f"refs/remotes/{remote}/{branch}")
+        sides.append({"repo": repo, "branch": branch, "commits": []})
+
+    output, rc = run(
+        ["git", "log", "--left-right", "--no-notes", "--no-show-signature",
+         "--format=%m%x00%H%x00%s", "...".join(refs), "--"],
+        cwd=path,
+    )
+    if rc != 0:
+        return None
+    commits_by_side = {"<": sides[0]["commits"], ">": sides[1]["commits"]}
+    for line in output.split("\n") if output else []:
+        side, commit_hash, subject = line.split("\0", 2)
+        commits_by_side[side].append({"hash": commit_hash, "subject": subject})
+    return sides
+
+
 def get_todays_commits(path, since_iso=None):
     """Return list of dicts for today's commits + raw diff (capped)."""
     if not is_git_repo(path):
@@ -342,7 +414,7 @@ def ping_url(url, timeout=5):
 
 
 def github_repo_metadata(repo_slug, token=None):
-    """Return repository visibility and fork source, or None when GitHub is unavailable."""
+    """Return visibility, fork source and default branch when GitHub provides them."""
     repo_slug = normalize_github_repo(repo_slug)
     if not repo_slug:
         return None
@@ -358,11 +430,12 @@ def github_repo_metadata(repo_slug, token=None):
             return {
                 "visibility": "private" if data.get("private") else "public",
                 "forked_from": source.get("full_name") if data.get("fork") else None,
+                "default_branch": data.get("default_branch"),
             }
         if r.status_code == 404:
             # 未带权限访问私有仓库通常是 404；这时只能保留原有的可见性推断，
             # 不能判断 fork 来源
-            return {"visibility": "private", "forked_from": None}
+            return {"visibility": "private", "forked_from": None, "default_branch": None}
     except Exception:
         pass
     return None
