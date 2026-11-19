@@ -781,7 +781,7 @@ def project_todo_restore(tid):
 
 @app.route("/log/<int:log_id>/ignore-checklist", methods=["POST"])
 def log_ignore_checklist(log_id):
-    """把某天日志的清单提醒从首页静音——只影响首页那一条，不动清单本身。"""
+    """忽略这批已同步提交的首页清单提醒。"""
     with db.cursor() as cur:
         cur.execute(
             "UPDATE daily_logs SET checklist_reminder_ignored = 1 WHERE id = ?", (log_id,)
@@ -1052,6 +1052,20 @@ def get_ai_config():
     }
 
 
+def _stored_commit_hashes(raw_commits_json):
+    try:
+        commits = json.loads(raw_commits_json or "[]")
+    except (ValueError, TypeError):
+        return set()
+    if not isinstance(commits, list):
+        return set()
+    return {
+        commit["hash"]
+        for commit in commits
+        if isinstance(commit, dict) and isinstance(commit.get("hash"), str) and commit["hash"]
+    }
+
+
 def sync_project_day(p, day_iso, today, unpushed_hashes, info, ai_cfg):
     """补齐某个项目某一天的日志：commit 列表、AI 摘要和自动检测的清单状态。
 
@@ -1062,6 +1076,7 @@ def sync_project_day(p, day_iso, today, unpushed_hashes, info, ai_cfg):
     commits, diff = scanner.get_commits_for_day(p["path"], day_iso)
     if not commits:
         return 0, False
+    day_hashes = {c["hash"] for c in commits}
 
     # 已经有摘要的历史天就别再重复调 AI（今天例外：每次都刷新覆盖）
     with db.cursor() as cur:
@@ -1077,12 +1092,9 @@ def sync_project_day(p, day_iso, today, unpushed_hashes, info, ai_cfg):
     if already_summarized and not is_today:
         # 但要比对 commit 集合：那天在上次同步之后又出了新 commit（深夜提交、过零点
         # 才同步的「零点裂缝」）就得重写补齐；集合没变才跳过，不重复花 AI 调用。
-        try:
-            known = {c.get("hash") for c in json.loads(row["raw_commits_json"] or "[]")}
-        except (ValueError, TypeError):
-            known = set()
+        known = _stored_commit_hashes(row["raw_commits_json"])
         # 老数据没存 commit 列表的无从比较，按没变处理，别为它们重花 AI
-        if not known or known == {c["hash"] for c in commits}:
+        if not known or known == day_hashes:
             return len(commits), False
 
     summary = (
@@ -1096,7 +1108,6 @@ def sync_project_day(p, day_iso, today, unpushed_hashes, info, ai_cfg):
     instruction_name = "AGENTS.md" if info.get("has_agentsmd") else "CLAUDE.md"
     auto_claudemd = 1 if instruction_name in changed_files else 0
     # 这天的 commit 是否都已推到 remote：只要有一条还在「未推集合」里，就算没推
-    day_hashes = {c["hash"] for c in commits}
     auto_pushed = 0 if (day_hashes & unpushed_hashes) else 1
     # 当前清单也能看到未提交的新文件。回补时看当天最后一条 commit 的文件树。
     # 本地还未提交的移除只隐藏当前项，已提交的当日状态仍可保留在历史里。
@@ -1108,18 +1119,31 @@ def sync_project_day(p, day_iso, today, unpushed_hashes, info, ai_cfg):
     has_claudemd = bool(info.get("has_claudemd"))
     disabled = default_disabled_for(p, has_claudemd=has_claudemd)
     with db.cursor() as cur:
+        # 摘要生成期间仍可忽略提醒。读取已落库的提交与写入新快照须在同一事务内。
+        cur.execute("BEGIN IMMEDIATE")
+        cur.execute(
+            "SELECT raw_commits_json FROM daily_logs "
+            "WHERE project_id = ? AND date = ? AND checklist_reminder_ignored != 0",
+            (pid, day_iso),
+        )
+        ignored_log = cur.fetchone()
+        keep_ignored = ignored_log is not None and day_hashes.issubset(
+            _stored_commit_hashes(ignored_log["raw_commits_json"])
+        )
         cur.execute(
             "INSERT INTO daily_logs (project_id, date, auto_summary, raw_commits_json, "
-            "claudemd_updated, roadmap_updated, pushed_to_github, disabled_checks) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?) "
+            "claudemd_updated, roadmap_updated, pushed_to_github, disabled_checks, "
+            "checklist_reminder_ignored) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) "
             "ON CONFLICT(project_id, date) DO UPDATE SET "
             "auto_summary=excluded.auto_summary, raw_commits_json=excluded.raw_commits_json, "
             "claudemd_updated=excluded.claudemd_updated, "
             "roadmap_updated=excluded.roadmap_updated, "
-            "pushed_to_github=excluded.pushed_to_github",
+            "pushed_to_github=excluded.pushed_to_github, "
+            "checklist_reminder_ignored=excluded.checklist_reminder_ignored",
             (
                 pid, day_iso, summary, json.dumps(commits, ensure_ascii=False),
-                auto_claudemd, auto_roadmap, auto_pushed, disabled,
+                auto_claudemd, auto_roadmap, auto_pushed, disabled, int(keep_ignored),
             ),
         )
     # 落一份 Markdown 到 Obsidian vault（没配路径则内部跳过）

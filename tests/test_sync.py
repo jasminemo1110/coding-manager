@@ -336,6 +336,32 @@ def test_today_summary_refreshed_every_sync(test_db, repo, monkeypatch):
 
 # ---------- 清单：用户操作在重同步后保留 ----------
 
+def test_new_commits_restore_ignored_checklist_reminder(test_db, repo):
+    today = iso()
+    test_db.set_scan_paths([str(repo.parent)])
+    make_commit(repo, "AGENTS.md", "项目说明", iso(1))
+    make_commit(repo, "feature.txt", "第一批改动", today)
+    pid = add_project(test_db, "proj", repo)
+    app.sync_one_project(pid)
+
+    client = app.app.test_client()
+    log = get_log(test_db, pid, today)
+    ignore_url = f"/log/{log['id']}/ignore-checklist"
+    assert client.post(ignore_url).get_json()["ok"]
+    app.sync_one_project(pid)
+    assert get_log(test_db, pid, today)["checklist_reminder_ignored"] == 1
+    assert b'class="checklist-reminder"' not in client.get("/").data
+
+    make_commit(repo, "feature.txt", "同一天的第二批改动", today)
+    app.sync_one_project(pid)
+    assert get_log(test_db, pid, today)["checklist_reminder_ignored"] == 0
+    assert b'class="checklist-reminder"' in client.get("/").data
+
+    assert client.post(ignore_url).get_json()["ok"]
+    app.sync_one_project(pid)
+    assert b'class="checklist-reminder"' not in client.get("/").data
+
+
 def test_user_removed_check_stays_removed(test_db, repo):
     make_commit(repo, "ROADMAP.md", "# 路线图", iso(0))
     pid = add_project(test_db, "proj", repo)

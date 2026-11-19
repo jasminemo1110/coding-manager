@@ -50,7 +50,7 @@
           <span class="reminder-tip" role="tooltip">未更新：{{ t.unchecked_labels|join('、') }}</span>
           <button type="button" class="reminder-ignore"
                   data-ignore-url="{{ url_for('log_ignore_checklist', log_id=t.log_id) }}"
-                  title="忽略这条提醒（项目页清单不受影响）" aria-label="忽略这条提醒">×</button>
+                  title="忽略这条提醒，直到同步发现新提交" aria-label="忽略这条提醒">×</button>
         </li>
         {% else %}
         <li>
