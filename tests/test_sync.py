@@ -371,10 +371,12 @@ def test_project_detail_lists_exclusive_commits_for_two_default_branches(test_db
     git(repo, "remote", "add", "origin", "https://github.com/me/private.git")
     git(repo, "remote", "add", "mirror", "git@github.com:me/public.git")
     make_commit(repo, "private.txt", "private", iso(2), msg="私有提交")
+    make_commit(repo, "shared-fix.txt", "fix", iso(1), msg="两边都发布的改动")
     git(repo, "update-ref", "refs/remotes/origin/trunk", "HEAD")
     git(repo, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/trunk")
     git(repo, "checkout", "--detach", "shared")
     make_commit(repo, "public.txt", "public", iso(1), msg="公开提交")
+    git(repo, "cherry-pick", "refs/remotes/origin/trunk")
     git(repo, "update-ref", "refs/remotes/mirror/release/main", "HEAD")
     git(repo, "symbolic-ref", "refs/remotes/mirror/HEAD", "refs/remotes/mirror/release/main")
     make_commit(repo, "local.txt", "local", iso(0))
@@ -392,8 +394,9 @@ def test_project_detail_lists_exclusive_commits_for_two_default_branches(test_db
     assert "私有仓 <code>trunk</code> 多 1 条" in page
     assert "公开仓 <code>release/main</code> 多 1 条" in page
     assert "私有提交" in page and "公开提交" in page
+    assert "两边都发布的改动" not in page
     for slug, ref in [("private", "origin/trunk"), ("public", "mirror/release/main")]:
-        commit_hash, rc = app.scanner.run(["git", "rev-parse", f"refs/remotes/{ref}"], cwd=repo)
+        commit_hash, rc = app.scanner.run(["git", "rev-parse", f"refs/remotes/{ref}^"], cwd=repo)
         assert rc == 0
         assert f'href="https://github.com/me/{slug}/commit/{commit_hash}"' in page
     assert get_log(test_db, dual_id, iso())["pushed_to_github"] == 1

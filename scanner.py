@@ -247,7 +247,7 @@ def _remote_default_branch(path, remote, repo, token):
 
 
 def compare_github_default_branches(path, private_repo, public_repo, token=None):
-    """Compare tracked default branches that share a Git ancestor."""
+    """Compare tracked default branches, excluding patch-equivalent commits."""
     if not path or not is_git_repo(path):
         return None
     remotes = _github_fetch_remotes(path)
@@ -274,7 +274,7 @@ def compare_github_default_branches(path, private_repo, public_repo, token=None)
         return None
 
     output, rc = run(
-        ["git", "log", "--left-right", "--no-notes", "--no-show-signature",
+        ["git", "log", "--left-right", "--cherry-pick", "--no-notes", "--no-show-signature",
          "--format=%m%x00%H%x00%s", "...".join(tips), "--"],
         cwd=path,
     )
