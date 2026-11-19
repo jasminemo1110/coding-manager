@@ -1,21 +1,21 @@
 # Coding Manager
 
-> 轻松管理每一个创意与项目，让开发更有条理，成长清晰可见。
+> 用一个本地看板管理多个 Git 项目，把日常开发过程整理成可回顾的日志。
 
 ![Coding Manager Banner](static/banner.png)
 
-专为 **vibe coding 创作者**设计的本地项目管理工具。当你同时维护多个 AI 辅助项目时，Coding Manager 让你一眼掌握所有进度——git 日志、AI 摘要、每日清单、笔记、待办、自媒体，全在一处。
+Coding Manager 面向同时做多个项目的 **vibe coding 创作者**。在看板上按阶段、分类和暂停状态查看项目，收工后同步本机 Git 提交，再给当天的日志补上笔记。你可以随时把单个项目的日志和笔记导出为 Markdown，也可以关联 Obsidian，每次同步时自动归档，并在「学习」页查找笔记。[Obsidian 配置方式](#与-obsidian-联动可选)
 
 ---
 
 ## ✨ 核心功能
 
-- **📁 自动扫描项目** — 配置本地目录后自动发现所有 git 仓库，免手动录入
+- **📁 多项目看板** — 扫描指定目录的一级子文件夹，确认后将发现的 Git 仓库加入看板。支持按阶段、分类和暂停状态筛选，也可以先创建没有仓库的想法项目
 - **⑂ Fork 来源 & 个人日志边界** — 自动标出项目的上游仓库，并可从自己开始修改的日期记录日志，避免把原作者历史算进个人统计
-- **🤖 AI 每日摘要** — 同步后由 AI 生成当天改动摘要（默认 DeepSeek），包括「放弃了什么」
-- **✅ 每日清单** — 追踪项目说明（`AGENTS.md`，兼容旧项目的 `CLAUDE.md`）、GitHub 推送及可选的 Roadmap 更新和部署状态。项目页可直接打开 `ROADMAP.md` 或 `docs/ROADMAP.md`
+- **🤖 AI 每日摘要** — 配置 API Key 后根据提交说明和 diff 片段生成摘要（默认 DeepSeek）。如果提交里有撤回方案的线索，也会总结放弃了什么
+- **✅ 每日清单** — 同步时检测项目说明（`AGENTS.md`，兼容 `CLAUDE.md`）和 Roadmap 的更新，以及 GitHub 推送状态。启用部署追踪后手动勾选部署状态。项目页可直接打开 `ROADMAP.md` 或 `docs/ROADMAP.md`
 - **📊 Coding 日历** — 在热力图上查看近半年的开发活动，也可在项目设置中将个别项目排除在提交统计之外
-- **📝 项目笔记** — 把笔记关联到某天的开发日志，回看时能一起找到
+- **📝 项目笔记与 Markdown 导出** — 把笔记关联到某天的开发日志。在项目详情点「导出」，即可下载可见的项目日志和项目笔记
 - **💎 Obsidian 联动** — 把项目日志归档成 Markdown，在工作台搜索 Obsidian 学习笔记。[查看配置方式](#与-obsidian-联动可选)
 - **☑️ 待办管理** — 全局 + 项目级待办，重要项自动浮到顶部面板
 - **📣 自媒体内容** — 管理选题、发布状态与时间，关联到具体项目
@@ -81,19 +81,19 @@ rm "$HOME/Library/LaunchAgents/com.coding-dashboard.web.plist"
 
 | 配置项 | 用途 | 没有时的影响 |
 |--------|------|------------|
-| **AI API Key** | 生成 AI 每日摘要和项目简介（OpenAI 兼容接口，默认 DeepSeek） | 摘要功能不可用，其余正常 |
-| **GitHub Token** | 自动识别私有仓库可见性 | 私有仓库显示为「未知」 |
-| **扫描路径** | 自动发现本地 git 项目 | 需手动添加项目 |
+| **AI API Key** | 生成 AI 每日摘要和项目简介（OpenAI 兼容接口，默认 DeepSeek） | 仍可记录 Git 提交和手动笔记 |
+| **GitHub Token** | 查询有权限的私有仓库的可见性和 Fork 来源 | 本地 Git 扫描和推送检测照常使用 |
+| **扫描目录** | 在看板列出一级子目录中的 Git 仓库，供你确认添加 | 仍可手动添加项目 |
 | **备份目录** | 指定 `data.db` 备份存放位置 | 优先使用可用的 iCloud Drive，否则使用本地 `backups/` |
 | **Obsidian 归档目录** | 关联已有的 Obsidian vault | 项目日志、项目笔记和待办可在网页照常使用 |
 
-API Key 申请：默认用 [DeepSeek](https://platform.deepseek.com)（便宜、注册简单、国内可直连）；也可在「设置」页把 Base URL 和模型改成 OpenAI、通义千问等任意 OpenAI 兼容服务商。
+默认的 AI 服务商是 DeepSeek。也可在「设置」页更换 API Key、Base URL 和模型，连接 OpenAI、通义千问等兼容服务。[DeepSeek 开放平台](https://platform.deepseek.com)
 
 ---
 
 ## 与 Obsidian 联动（可选）
 
-如果你平时用 Obsidian，推荐把自己的 vault 接到 Coding Manager。回顾某天做了什么时，可以直接在 Obsidian 里搜项目日志。查开发资料时，也可以从工作台找到学习笔记，一键打开原文。
+如果你平时用 Obsidian，推荐关联自己的 vault。项目进展会按天归档，可以在熟悉的笔记库里按项目和日期回顾。查开发资料时，从工作台的「学习」页搜索，再一键打开 Obsidian 原笔记。
 
 打开「设置 → Obsidian 归档目录」，填入 vault 根目录（包含 `.obsidian/` 的文件夹），然后保存。项目日志总文件夹默认叫 `coding-dashboard`，可以在设置里改名。
 
@@ -109,7 +109,7 @@ API Key 申请：默认用 [DeepSeek](https://platform.deepseek.com)（便宜、
 
 从旧版本升级时，如果有旧的全局学习资料，可以在「学习」页点「迁移到 Obsidian」。迁移会保留数据库里的旧记录，并为同名笔记另存文件。
 
-不用 Obsidian 的话，把归档目录留空即可。项目管理、手动与定时同步、网页里的项目日志和笔记都能照常使用。
+不用 Obsidian 的话，把归档目录留空即可。可以照常在网页里同步和管理项目，或从项目详情随时导出 Markdown。
 
 ## 💻 换设备交接
 
@@ -117,9 +117,15 @@ API Key 申请：默认用 [DeepSeek](https://platform.deepseek.com)（便宜、
 
 这是整库交接，不自动合并两台电脑的独立修改，也不会自动加载 iCloud 最新备份。项目代码仍通过 GitHub 交接，Obsidian 文件另行同步。详细数据保护规则见 [AGENTS.md](AGENTS.md#跨设备交接)。
 
-## 🕚 定时自动同步（可选）
+## 🕚 项目同步与定时任务
 
-手动点「同步到最新」随时可用。想每天自动读取本机 Git 提交、生成已配置的 AI 摘要并备份数据库，可以按你的系统设置定时任务来运行 `sync_cli.py`。已关联 Obsidian 时，同步也会更新对应的 Markdown 归档。
+在看板点「全部项目同步到最新」，或在项目详情同步单个项目。同步读取本机 Git 历史，补齐有提交的日期，更新日志和清单。配置了 AI API Key 会生成摘要，关联了 Obsidian 会更新 Markdown 归档。
+
+每日清单的 GitHub 勾选依据本机已知的远端跟踪分支。当天每条提交都至少出现在一个远端跟踪分支里时，就会勾选。需要从 GitHub 取回改动、刷新远端分支或推送提交时，使用你平时的 Git 工具。
+
+### 定时自动同步（可选）
+
+想每天自动同步项目并备份数据库，可以按系统设置定时任务来运行 `sync_cli.py`。
 
 **macOS（一键脚本，用 launchd）**
 
@@ -145,42 +151,25 @@ bash scripts/install-launchd.sh   # 每天 23:50 自动同步 + 备份
 
 ---
 
-## 🖥️ 部署到线上（可选）
+## 🖥️ 在其他设备上访问
 
-本地运行是默认推荐方式，数据存在本地 SQLite，无需网络。如果你希望在手机或多设备上访问，可以选择以下方式：
+推荐在存放 Git 仓库的电脑上运行。程序默认监听 `127.0.0.1:8765`，数据保存在本机 SQLite。看板、日志和笔记可以离线使用，AI 摘要和 GitHub 仓库信息查询需要联网。
 
-### 局域网访问（最简单）
+### 从可信局域网临时访问
 
-将 `app.py` 末尾的启动行改为：
+在已激活的虚拟环境中运行下面的命令。若本机已有服务占用 `8765`，可把命令和访问地址中的端口改为同一个空闲端口。
 
-```python
-app.run(host="0.0.0.0", port=8765, debug=False)
+```bash
+python -m flask --app app run --host 0.0.0.0 --port 8765 --no-debug
 ```
 
-重启后，同一 Wi-Fi 下的手机/其他电脑可通过 `http://你的电脑IP:8765` 访问。
+同一局域网的设备可通过 `http://<运行电脑的局域网 IP>:8765` 打开工作台。当前应用没有内置登录，临时访问请限于可信网络。
 
-### 云端部署（fly.io / Railway）
+### 云端自托管
 
-> ⚠️ 云端部署需要持久化存储，否则重启后数据会丢失。
+仓库当前没有 Fly.io 或 Railway 的部署配置。自行托管需要配置生产 WSGI 服务和平台端口、访问控制及持久化存储。SQLite 默认在程序目录创建 `data.db`，部署时要让实际数据库路径落在可写的持久卷上。[Fly.io 持久卷](https://docs.fly.io/volumes) · [Railway 持久卷](https://docs.railway.com/volumes)
 
-**fly.io（推荐，有免费额度）**
-
-1. 安装 flyctl：`brew install flyctl`（Mac）
-2. 登录：`fly auth login`
-3. 初始化：`fly launch`（按提示操作）
-4. 挂载持久卷（保存 data.db）：
-   ```bash
-   fly volumes create coding_manager_data --size 1
-   ```
-5. 在 `fly.toml` 中配置卷挂载，将 `data.db` 路径指向挂载目录
-6. 部署：`fly deploy`
-
-**Railway**
-
-1. 在 [railway.app](https://railway.app) 导入 GitHub 仓库
-2. 添加 Volume，挂载路径设为项目根目录
-3. 设置启动命令：`python app.py`
-4. 部署完成后在应用「设置」页填入 AI 服务商的 Key（默认 DeepSeek），或用 `OPENAI_API_KEY` 环境变量兜底
+部署到服务器后，扫描和归档使用服务器能访问的 Git 仓库和 vault。轮流在不同电脑上使用时，也可以按上面的「换设备交接」导出和导入记录。
 
 ---
 
