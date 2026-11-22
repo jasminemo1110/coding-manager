@@ -26,6 +26,7 @@ import ai
 import obsidian
 import learning_library
 import handoff
+import github_releases
 
 app = Flask(__name__)
 app.secret_key = "coding-dashboard-local"
@@ -78,6 +79,13 @@ def get_project(pid):
         cur.execute("SELECT * FROM projects WHERE id = ?", (pid,))
         row = cur.fetchone()
         return dict(row) if row else None
+
+
+def project_release_repo(project):
+    repo = project.get("github_repo_public")
+    if not repo and project.get("github_visibility") == "public":
+        repo = project.get("github_repo")
+    return scanner.normalize_github_repo(repo)
 
 
 def all_projects(include_excluded=False):
@@ -674,6 +682,7 @@ def project_detail(pid):
         archived_todo_count=archived_todo_count,
         unpushed_commits=unpushed_commits,
         branch_comparison=branch_comparison,
+        release_repo=project_release_repo(p),
         stage_labels=db.STAGE_LABELS,
         stage_order=db.STAGE_ORDER,
         categories=all_categories(),
@@ -888,6 +897,15 @@ def project_update(pid):
     return redirect(url_for("project_detail", pid=pid))
 
 
+@app.route("/project/<int:pid>/releases")
+def project_releases(pid):
+    p = get_project(pid)
+    repo = project_release_repo(p) if p else None
+    if not repo:
+        abort(404)
+    return render_template("project_releases.html", releases=github_releases.public_releases(repo))
+
+
 @app.route("/project/<int:pid>/refresh-github", methods=["POST"])
 def project_refresh_github(pid):
     p = get_project(pid)
@@ -904,6 +922,10 @@ def project_refresh_github(pid):
             "WHERE id=?",
             (vis, forked_from, pid),
         )
+    p["github_visibility"] = vis
+    release_repo = project_release_repo(p)
+    if release_repo:
+        github_releases.public_releases(release_repo, refresh=True)
     return jsonify({
         "ok": True,
         "visibility": vis,

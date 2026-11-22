@@ -1032,6 +1032,40 @@ html.hide-media.hide-todos .project-rows > .empty { grid-column: 1 / -1; }
   padding: 0;
 }
 .repo-comparison-commits li { padding: 0.1rem 0; }
+.project-releases {
+  margin: 0 0 1.4rem;
+  padding: 0.95rem 1.15rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper);
+}
+.release-status { margin: 0.3rem 0 0; }
+.release-row { border-top: 1px solid var(--line); }
+.release-row summary {
+  padding: 0.45rem 0;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.release-row summary > * { margin-right: 0.4rem; }
+.release-row summary:hover { color: var(--accent-ink); }
+.release-prerelease {
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+  color: var(--ink-soft);
+  background: var(--amber-soft);
+}
+.release-content { padding: 0 0 0.65rem 1rem; }
+.release-notes {
+  overflow-x: auto;
+  overflow-wrap: anywhere;
+  color: var(--ink-soft);
+  font-size: 0.9rem;
+}
+.release-notes > :first-child { margin-top: 0.3rem; }
+.release-notes h1, .release-notes h2, .release-notes h3 { font-size: 1rem; }
+.release-notes pre, .release-notes table { max-width: 100%; overflow-x: auto; }
+.release-notes pre { padding: 0.5rem; background: var(--bg); }
+.release-notes th, .release-notes td { padding: 0.2rem 0.5rem; border: 1px solid var(--line); }
 .project-desc {
   display: inline-flex;
   align-items: center;

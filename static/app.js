@@ -304,13 +304,28 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // Refresh GitHub visibility (project page)
+  // Load release notes without waiting for GitHub on the project page request.
+  const releaseSection = document.getElementById('project-releases');
+  if (releaseSection) {
+    fetch(releaseSection.dataset.url, { cache: 'no-store' })
+      .then(response => {
+        if (!response.ok) throw new Error('Could not load releases');
+        return response.text();
+      })
+      .then(html => { releaseSection.innerHTML = html; })
+      .catch(() => {
+        releaseSection.querySelector('.release-status').textContent = '暂时无法读取发布记录，可点击「刷新 GitHub」重试。';
+      })
+      .finally(() => releaseSection.removeAttribute('aria-busy'));
+  }
+
+  // Refresh repository visibility and public releases (project page).
   const refreshGh = document.getElementById('refresh-github-btn');
   if (refreshGh) {
     refreshGh.addEventListener('click', async () => {
       const original = refreshGh.textContent;
       refreshGh.disabled = true;
-      refreshGh.textContent = '检测中…';
+      refreshGh.textContent = '刷新中…';
       try {
         const r = await fetch(refreshGh.dataset.url, { method: 'POST' });
         const data = await r.json();

@@ -24,7 +24,7 @@
   <div class="head-actions project-actions">
     <button class="btn" id="project-sync-btn" data-url="{{ url_for('sync_today_one', pid=p.id) }}" data-status-url="{{ url_for('sync_status') }}" title="补齐上次同步至今每一天有改动但还没生成摘要的日子">🔄 同步到最新</button>
     {% if p.github_repo or p.github_repo_public %}
-    <button class="btn" id="refresh-github-btn" data-url="{{ url_for('project_refresh_github', pid=p.id) }}" title="重新检测 GitHub 仓库的公开/私有状态">🔄 刷新 GitHub</button>
+    <button class="btn" id="refresh-github-btn" data-url="{{ url_for('project_refresh_github', pid=p.id) }}" title="重新检测仓库可见性并更新公开仓的发布记录">🔄 刷新 GitHub</button>
     {% endif %}
     <button class="btn project-action-edit" onclick="document.getElementById('edit-project').showModal()">编辑</button>
     <button class="btn" id="project-history-btn" data-url="{{ url_for('sync_history_one', pid=p.id) }}" title="导入日志起始日期之后的历史 commit">📥 导入历史</button>
@@ -96,6 +96,13 @@
   </div>
   {% endif %}
 </div>
+
+{% if release_repo %}
+<section class="project-releases" id="project-releases" aria-labelledby="project-releases-title"
+         data-url="{{ url_for('project_releases', pid=p.id) }}" aria-busy="true">
+  {% include "project_releases.html" %}
+</section>
+{% endif %}
 
 <section class="project-todos">
   <div class="section-head">

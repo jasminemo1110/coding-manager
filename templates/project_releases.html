@@ -1,0 +1,29 @@
+<div class="section-head">
+  <h2 id="project-releases-title">发布记录{% if releases is defined and releases is not none %} <span class="muted small">· 共 {{ releases|length }} 个版本</span>{% endif %}</h2>
+</div>
+{% if releases is undefined %}
+  <p class="release-status muted small" role="status">正在读取 GitHub 发布记录…</p>
+{% elif releases is none %}
+  <p class="release-status muted small" role="status">暂时无法读取发布记录，可点击「刷新 GitHub」重试。</p>
+{% elif not releases %}
+  <p class="release-status muted small">这个公开仓还没有发布 Release。</p>
+{% else %}
+  {% for release in releases %}
+  <details class="release-row"{% if loop.first %} open{% endif %}>
+    <summary>
+      <code>{{ release.tag }}</code>
+      {% if release.name and release.name != release.tag %}<strong>{{ release.name }}</strong>{% endif %}
+      <time class="muted small" datetime="{{ release.published_at }}">{{ release.published_at[:10] }}</time>
+      {% if release.prerelease %}<span class="release-prerelease small">预发布</span>{% endif %}
+    </summary>
+    <div class="release-content">
+      {% if release.notes %}
+      <div class="release-notes">{{ release.notes }}</div>
+      {% else %}
+      <p class="muted small">这个版本没有填写更新说明。</p>
+      {% endif %}
+      <a class="small" href="{{ release.url }}" target="_blank" rel="noopener noreferrer">在 GitHub 查看 ↗</a>
+    </div>
+  </details>
+  {% endfor %}
+{% endif %}
